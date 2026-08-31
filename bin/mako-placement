@@ -6,19 +6,25 @@
 # the shape config writes `output=@middle` and this resolves it to the live
 # middle connector (median x-position), so it survives a connector reshuffle.
 #
-# kanshi-autoscale is the SSOT for the shape (as for the wayfire runtime and
-# locker); kanshi-mgr runs this at session start, and the config phase seeds
-# placement.active from the single shape so mako can start before the first run.
+# kanshi-autoscale (OPTIONAL) is the SSOT for the shape; a display-change hook
+# runs this, and setup.sh seeds placement.active so mako can start before the
+# first run. With no shared shapes tree or no kanshi-autoscale, it falls back to
+# hush's shipped default (a single-output placement); soft deps, degrade clean.
 set -eu
 
 _cfg=${XDG_CONFIG_HOME:-$HOME/.config}
 SHAPES=${MAKO_SHAPES:-$_cfg/shapes}
 ACTIVE=${MAKO_ACTIVE:-$_cfg/mako/placement.active}
+# hush's own default, self-located (../share from bin/), for a box with no
+# shared shapes tree (standalone, or a single-panel machine).
+_self=$(readlink -f "$0" 2>/dev/null || echo "$0")
+_default=${_self%/*}/../share/mako/default.conf
 
 _shape=$(kanshi-autoscale shape 2>/dev/null || true)
 [ -n "$_shape" ] || _shape=single
 SRC=${MAKO_SRC:-$SHAPES/$_shape/mako.conf}
 [ -r "$SRC" ] || SRC=$SHAPES/single/mako.conf
+[ -r "$SRC" ] || SRC=$_default
 [ -r "$SRC" ] || exit 0
 
 # The middle output: the median once sorted left-to-right by layout position.

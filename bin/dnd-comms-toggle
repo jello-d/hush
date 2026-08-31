@@ -1,5 +1,5 @@
 #!/bin/bash
-# dnd-comms-toggle.sh - Cycle through notification filter states
+# dnd-comms-toggle - Cycle through notification filter states
 #
 # States:
 #   all  - All notifications come through
@@ -7,10 +7,10 @@
 #   none - All comms (Signal + Slack) blocked
 #
 # Usage:
-#   dnd-comms-toggle.sh          # Output current state (for waybar)
-#   dnd-comms-toggle.sh toggle   # Cycle to next state
-#   dnd-comms-toggle.sh set STATE  # Set specific state (all/work/none)
-#   dnd-comms-toggle.sh status   # Print current state name
+#   dnd-comms-toggle          # Print the current state
+#   dnd-comms-toggle toggle   # Cycle to next state
+#   dnd-comms-toggle set STATE  # Set specific state (all/work/none)
+#   dnd-comms-toggle status   # Print current state name
 
 STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/dnd-comms-state"
 
@@ -67,26 +67,6 @@ cycle_state() {
     esac
 }
 
-output_waybar_json() {
-    local state
-    state=$(get_state)
-    
-    case "$state" in
-        all)
-            echo '{"text": " ", "tooltip": "Notifications: ALL\nClick to filter to work only", "class": "all", "alt": "all"}'
-            ;;
-        work)
-            echo '{"text": " ", "tooltip": "Notifications: WORK ONLY\nSignal blocked\nClick to mute all", "class": "work", "alt": "work"}'
-            ;;
-        none)
-            echo '{"text": " ", "tooltip": "Notifications: MUTED\nSignal + Slack blocked\nClick to unmute all", "class": "none", "alt": "none"}'
-            ;;
-        *)
-            echo '{"text": " ", "tooltip": "Notifications: unknown", "class": "all", "alt": "all"}'
-            ;;
-    esac
-}
-
 # Initialize state file if missing
 if [[ ! -f "$STATE_FILE" ]]; then
     echo "all" > "$STATE_FILE"
@@ -108,7 +88,6 @@ case "${1:-}" in
         get_state
         ;;
     *)
-        # Default: output JSON for waybar
-        output_waybar_json
+        get_state       # a bare call prints the current state
         ;;
 esac

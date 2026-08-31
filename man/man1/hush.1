@@ -1,0 +1,71 @@
+.TH HUSH 1 "" "hush" "User Commands"
+.SH NAME
+hush \- a trinary notifications filter, placement, and tray icon for mako
+.SH SYNOPSIS
+.B dnd-comms-toggle
+.RB [ toggle | status | "set " STATE ]
+.br
+.B mako-placement
+.br
+.B comms-indicator
+.RB [ render-test " " DIR ]
+.SH DESCRIPTION
+hush is a small notifications suite over
+.BR mako (1).
+There is no eponymous
+.B hush
+command; the three tools below are invoked by name (the tray icon runs as a
+.B --user
+service).
+.PP
+The FILTER is trinary and application-based, not identity-based: it cycles a
+mako mode set so notifications flow, or only "work" flows (personal muted), or
+all are muted. What counts as work vs personal is a mako rule (e.g. Slack vs
+Signal), so hush carries no notion of a work account or boundary.
+.SH TOOLS
+.TP
+.B dnd-comms-toggle
+The filter state machine. `toggle` cycles all -> work -> none; `set <state>`
+jumps to one; a bare call prints the state as waybar JSON. It drives mako via
+.BR makoctl " mode."
+State lives in
+.IR $XDG_RUNTIME_DIR/dnd-comms-state .
+.TP
+.B mako-placement
+Writes the notification placement/sizing to mako's
+.I placement.active
+include for the current display. It reads the per-shape
+.I ~/.config/shapes/<shape>/mako.conf
+and the display density when a shape resolver (kanshi-autoscale) is present, and
+falls back to a shipped single-output default otherwise. Both are OPTIONAL soft
+dependencies; hush degrades cleanly without them.
+.TP
+.B comms-indicator
+An SNI tray icon drawn as an owned glyph (a rounded tile, frame colour = state).
+It reads the filter state to draw and left-click cycles it via
+.BR dnd-comms-toggle .
+Runs as the
+.I comms-indicator.service
+.B --user
+unit (a venv-backed Python daemon; needs a tray host).
+.SH FILES
+.TP
+.I ~/.config/mako/config
+hush's mako config (appearance + the dnd modes); include's placement.active.
+.TP
+.I ~/.config/shapes/<shape>/mako.conf
+Optional per-shape placement/sizing (a shared, integrator-owned tree); read when
+present.
+.SH RUNTIME DEPENDENCIES
+.BR mako "(1), " makoctl "(1); a StatusNotifierItem tray host for the icon."
+Optional: a display-shape resolver (kanshi-autoscale) for per-shape sizing.
+.SH SETUP
+.B ./setup.sh install
+links the shell tools + the mako config;
+.B ./setup.sh service
+builds the tray-icon venv and enables its daemon;
+.B ./setup.sh check
+audits the install. See the README.
+.SH SEE ALSO
+.BR mako (1),
+.BR makoctl (1)

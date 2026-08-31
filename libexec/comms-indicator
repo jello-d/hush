@@ -1,4 +1,4 @@
-#!/usr/bin/env -S venv-run comms-indicator
+#!/usr/bin/env python3
 """comms-indicator - an SNI tray icon for the notifications filter (all / work /
 only-work / none), drawn as an owned glyph (a near-black rounded tile, frame
 colour = state) so it reads cleanly beside other status icons.
@@ -136,9 +136,7 @@ def icon_pixmap(state, sizes=(22, 32, 48)):
 # --- state feed: read the file the toggle script owns; cycle via the script ---
 STATE_FILE = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "dnd-comms-state")
-TOGGLE = os.environ.get(
-    "COMMS_TOGGLE",
-    os.path.expanduser("~/.config/waybar/scripts/dnd-comms-toggle.sh"))
+TOGGLE = os.environ.get("COMMS_TOGGLE", "dnd-comms-toggle")  # resolved on PATH
 
 
 def read_state():

@@ -3,12 +3,12 @@ Description=comms-indicator: SNI tray icon for the notifications filter
 After=default.target
 
 [Service]
-# The daemon runs through venv-run (its shebang), which lives on ~/bin; a --user
-# service inherits no login PATH, so name ~/bin explicitly. It also shells the
-# dnd-comms-toggle.sh helper (which calls makoctl, a system binary), hence the
-# system dirs too.
-Environment=PATH=%h/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=%h/bin/comms-indicator
+# The command is a launcher setup.sh writes to ~/.local/bin (execs the hush venv
+# python on the daemon); a --user service inherits no login PATH, so name
+# ~/.local/bin explicitly. It also shells the dnd-comms-toggle helper (which
+# calls makoctl, a system binary), hence the system dirs too.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.local/bin/comms-indicator
 Restart=always
 RestartSec=2
 

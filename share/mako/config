@@ -9,7 +9,7 @@ padding=20
 # Title one notch LARGER than the body (size="larger" is relative, so the
 # title stays a step above the body at any base font -- 11 on a low-res panel,
 # 18 on the design). Body forced white so only the title carries the accent.
-format=<span size="larger" weight="bold">%s</span>\n<span foreground="#ffffff">%b</span>
+format=<big><b>%s</b></big>\n<span foreground="#fff">%b</span>
 
 # Sizing
 width=525
