@@ -32,7 +32,7 @@ VENV=${HUSH_VENV:-$HOME/.venvs/hush}
 DEPS="mako makoctl"   # the filter drives mako; the tray needs a tray host
 RC=0
 
-# marker contract: plain [OK]/[FAIL]/[WARN] an integrator (tackup paint) styles;
+# marker contract: plain [OK]/[FAIL]/[WARN] an integrator styles in its palette;
 # self-coloured at a terminal, plain when piped or under NO_COLOR.
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   _G=$(printf '\033[32m'); _R=$(printf '\033[31m')
