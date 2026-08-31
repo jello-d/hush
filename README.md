@@ -39,3 +39,10 @@ uses its single-output default. The tray icon's Python deps (`dbus-next`,
 
 POSIX shell throughout, except the tray daemon (Python); no daemon in the core.
 Apache-2.0.
+
+## Development
+
+An 80-column limit is enforced by a tracked pre-commit hook. Enable it once
+per clone:
+
+    git config core.hooksPath .githooks
