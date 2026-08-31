@@ -1,0 +1,114 @@
+#!/bin/bash
+# dnd-comms-toggle.sh - Cycle through notification filter states
+#
+# States:
+#   all  - All notifications come through
+#   work - Only work (Slack); personal (Signal) blocked
+#   none - All comms (Signal + Slack) blocked
+#
+# Usage:
+#   dnd-comms-toggle.sh          # Output current state (for waybar)
+#   dnd-comms-toggle.sh toggle   # Cycle to next state
+#   dnd-comms-toggle.sh set STATE  # Set specific state (all/work/none)
+#   dnd-comms-toggle.sh status   # Print current state name
+
+STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/dnd-comms-state"
+
+# Mako mode names
+MODE_BLOCK_PERSONAL="dnd-personal"  # Blocks Signal
+MODE_BLOCK_ALL="dnd-comms"          # Blocks Signal + Slack
+
+get_state() {
+    if [[ -f "$STATE_FILE" ]]; then
+        cat "$STATE_FILE"
+    else
+        echo "all"
+    fi
+}
+
+set_state() {
+    local new_state="$1"
+    
+    # Clear all DND modes first
+    makoctl mode -r "$MODE_BLOCK_PERSONAL" 2>/dev/null
+    makoctl mode -r "$MODE_BLOCK_ALL" 2>/dev/null
+    
+    # Apply appropriate mode
+    case "$new_state" in
+        all)
+            # No modes - everything comes through
+            ;;
+        work)
+            # Block personal (Signal), allow work (Slack)
+            makoctl mode -a "$MODE_BLOCK_PERSONAL"
+            ;;
+        none)
+            # Block all comms
+            makoctl mode -a "$MODE_BLOCK_ALL"
+            ;;
+        *)
+            echo "Unknown state: $new_state" >&2
+            return 1
+            ;;
+    esac
+    
+    echo "$new_state" > "$STATE_FILE"
+}
+
+cycle_state() {
+    local current
+    current=$(get_state)
+    
+    case "$current" in
+        all)  set_state "work" ;;
+        work) set_state "none" ;;
+        none) set_state "all" ;;
+        *)    set_state "all" ;;
+    esac
+}
+
+output_waybar_json() {
+    local state
+    state=$(get_state)
+    
+    case "$state" in
+        all)
+            echo '{"text": " ", "tooltip": "Notifications: ALL\nClick to filter to work only", "class": "all", "alt": "all"}'
+            ;;
+        work)
+            echo '{"text": " ", "tooltip": "Notifications: WORK ONLY\nSignal blocked\nClick to mute all", "class": "work", "alt": "work"}'
+            ;;
+        none)
+            echo '{"text": " ", "tooltip": "Notifications: MUTED\nSignal + Slack blocked\nClick to unmute all", "class": "none", "alt": "none"}'
+            ;;
+        *)
+            echo '{"text": " ", "tooltip": "Notifications: unknown", "class": "all", "alt": "all"}'
+            ;;
+    esac
+}
+
+# Initialize state file if missing
+if [[ ! -f "$STATE_FILE" ]]; then
+    echo "all" > "$STATE_FILE"
+fi
+
+case "${1:-}" in
+    toggle)
+        cycle_state
+        ;;
+    set)
+        if [[ -n "${2:-}" ]]; then
+            set_state "$2"
+        else
+            echo "Usage: $0 set STATE" >&2
+            exit 1
+        fi
+        ;;
+    status)
+        get_state
+        ;;
+    *)
+        # Default: output JSON for waybar
+        output_waybar_json
+        ;;
+esac

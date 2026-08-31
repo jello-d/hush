@@ -1,0 +1,5 @@
+# comms-indicator.reqs - venv for the SNI notifications-filter tray icon
+# (link/bin/comms-indicator). dbus-next is pure-Python D-Bus (no PyGObject /
+# gobject-introspection system dep); Pillow draws the owned glyph pixmaps.
+dbus-next
+Pillow

@@ -1,0 +1,16 @@
+[Unit]
+Description=comms-indicator: SNI tray icon for the notifications filter
+After=default.target
+
+[Service]
+# The daemon runs through venv-run (its shebang), which lives on ~/bin; a --user
+# service inherits no login PATH, so name ~/bin explicitly. It also shells the
+# dnd-comms-toggle.sh helper (which calls makoctl, a system binary), hence the
+# system dirs too.
+Environment=PATH=%h/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/bin/comms-indicator
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

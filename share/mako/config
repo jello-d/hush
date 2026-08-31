@@ -1,0 +1,90 @@
+# Appearance
+font=Inter 18
+background-color=#2200aaee
+text-color=#ddeeff
+border-color=#ccccffff
+border-size=3
+border-radius=6
+padding=20
+# Title one notch LARGER than the body (size="larger" is relative, so the
+# title stays a step above the body at any base font -- 11 on a low-res panel,
+# 18 on the design). Body forced white so only the title carries the accent.
+format=<span size="larger" weight="bold">%s</span>\n<span foreground="#ffffff">%b</span>
+
+# Sizing
+width=525
+height=350
+margin=16
+
+# Position -- SHAPE-determined, authored in shapes/<shape>/mako.conf (a wall
+# centers on the middle output at the bottom, a single panel is top-right).
+# mako-placement (link/bin) resolves it each session into placement.active
+# (below); the config phase seeds that from the single shape so mako can start
+# before the first run.
+include=~/.config/mako/placement.active
+
+# Behavior
+default-timeout=5000
+ignore-timeout=1
+group-by=app-name
+
+# Icons
+icon-path=/usr/share/icons/Adwaita
+icons=1
+max-icon-size=80
+
+# Actions (buttons in notifications)
+actions=1
+
+# Urgency-specific styling
+[urgency=low]
+background-color=#333333cc
+border-color=#BBBBBBcc
+
+[urgency=high]
+text-color=#ffeedd
+background-color=#550000ee
+border-color=#FF4444cc
+default-timeout=0
+
+# Match Chrome notifications that have a "Join" action
+# We can't match on the existance of "Join" but we can filter on actionable 
+# as well as ensure that there is a summary and it comes from Chrome. Hacky.
+
+# commenting this out for now, it's too greedy and matching all chrome notify
+[app-name="Google Chrome" actionable=true]
+background-color=#001177cc
+border-color=#5599FF
+
+
+# Two modes for filtering:
+#   dnd-personal - blocks Signal only (for "work" state)
+#   dnd-comms    - blocks both Signal and Slack (for "none" state)
+
+# =============================================================================
+# Mode: dnd-personal (blocks personal apps, allows work apps)
+# Used when state = "work"
+# =============================================================================
+
+[mode=dnd-personal app-name="Signal"]
+invisible=1
+
+[mode=dnd-personal app-name="signal-desktop"]
+invisible=1
+
+# =============================================================================
+# Mode: dnd-comms (blocks all communication apps)
+# Used when state = "none"
+# =============================================================================
+
+[mode=dnd-comms app-name="Signal"]
+invisible=1
+
+[mode=dnd-comms app-name="signal-desktop"]
+invisible=1
+
+[mode=dnd-comms app-name="Slack"]
+invisible=1
+
+[mode=dnd-comms app-name="slack"]
+invisible=1

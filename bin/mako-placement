@@ -1,0 +1,73 @@
+#!/bin/sh
+# mako-placement -- write the SHAPE's notification placement to mako's include
+# fragment (~/.config/mako/placement.active). Placement is shape-determined,
+# AUTHORED in ~/.config/shapes/<shape>/mako.conf, next to the rest of the shape
+# (grid, wallpaper, locker). The one DERIVED bit is the middle output of a wall:
+# the shape config writes `output=@middle` and this resolves it to the live
+# middle connector (median x-position), so it survives a connector reshuffle.
+#
+# kanshi-autoscale is the SSOT for the shape (as for the wayfire runtime and
+# locker); kanshi-mgr runs this at session start, and the config phase seeds
+# placement.active from the single shape so mako can start before the first run.
+set -eu
+
+_cfg=${XDG_CONFIG_HOME:-$HOME/.config}
+SHAPES=${MAKO_SHAPES:-$_cfg/shapes}
+ACTIVE=${MAKO_ACTIVE:-$_cfg/mako/placement.active}
+
+_shape=$(kanshi-autoscale shape 2>/dev/null || true)
+[ -n "$_shape" ] || _shape=single
+SRC=${MAKO_SRC:-$SHAPES/$_shape/mako.conf}
+[ -r "$SRC" ] || SRC=$SHAPES/single/mako.conf
+[ -r "$SRC" ] || exit 0
+
+# The middle output: the median once sorted left-to-right by layout position.
+# One "name x" record per ENABLED output (Position trails Enabled in wlr-randr).
+_middle() {
+  wlr-randr 2>/dev/null | awk '
+    function flush() { if (name != "" && en && havex) print name, x }
+    /^[^ \t]/       { flush(); name=$1; en=0; havex=0; x=0 }
+    /^  Enabled: yes/ { en=1 }
+    /^  Position:/  { split($2, a, ","); x=a[1]; havex=1 }
+    END { flush() }' | sort -k2 -n | awk '{a[NR]=$1}
+      END{ if (NR) print a[int((NR + 1) / 2)] }'
+}
+
+_tmp=$(mktemp)
+if grep -q '^output=@middle' "$SRC"; then
+  _mid=$(_middle)
+  if [ -n "$_mid" ]; then           # only the directive, not the doc comment
+    sed "s/^output=@middle/output=$_mid/" "$SRC" > "$_tmp"
+  else
+    grep -v '^output=@middle' "$SRC" > "$_tmp"   # unresolvable -> drop output
+  fi
+else
+  cat "$SRC" > "$_tmp"
+fi
+
+# Density profile: mako's font AND box are single global configs sized for the
+# design panel (Inter 18, 525x350, 20px pad), so a low-res panel needs them all
+# much smaller. placement.active is include'd AFTER those lines, so options here
+# OVERRIDE them (mako is last-wins). The lo-res signal is MAKO_FONT being set by
+# the one resolver (kanshi-autoscale uiprofile, the SSOT like kitty/wayfire); on
+# a hi-res panel it is empty and the base config stands -- a strict no-op. The
+# box values scale ~0.6x with the font (525->320, 20->12, 80->48 icon).
+_mako_font=$(kanshi-autoscale uiprofile 2>/dev/null | sed -n s/^MAKO_FONT=//p)
+if [ -n "$_mako_font" ]; then
+  {
+    printf 'font=%s\n' "$_mako_font"
+    printf 'width=320\n'
+    printf 'height=180\n'
+    printf 'padding=12\n'
+    printf 'margin=12\n'
+    printf 'max-icon-size=48\n'
+  } >> "$_tmp"
+fi
+
+mkdir -p "$(dirname "$ACTIVE")"
+if cmp -s "$_tmp" "$ACTIVE" 2>/dev/null; then
+  rm -f "$_tmp"
+else
+  mv "$_tmp" "$ACTIVE"
+  makoctl reload 2>/dev/null || true
+fi
