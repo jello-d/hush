@@ -33,7 +33,7 @@ the install; `setup.sh uninstall` reverses it.
 
 `mako` + `makoctl` (the filter drives mako), and a StatusNotifierItem tray host
 for the icon (waybar's tray, or any desktop's). Optional: a display-shape
-resolver (e.g. kanshi-autoscale) for per-shape placement/sizing; absent, hush
+resolver (e.g. hwdp) for per-shape placement/sizing; absent, hush
 uses its single-output default. The tray icon's Python deps (`dbus-next`,
 `Pillow`) are pulled into the venv by `setup.sh service`.
 

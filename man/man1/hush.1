@@ -36,7 +36,7 @@ Writes the notification placement/sizing to mako's
 .I placement.active
 include for the current display. It reads the per-shape
 .I ~/.config/shapes/<shape>/mako.conf
-and the display density when a shape resolver (kanshi-autoscale) is present, and
+and the display density when a shape resolver (hwdp) is present, and
 falls back to a shipped single-output default otherwise. Both are OPTIONAL soft
 dependencies; hush degrades cleanly without them.
 .TP
@@ -58,7 +58,7 @@ Optional per-shape placement/sizing (a shared, integrator-owned tree); read when
 present.
 .SH RUNTIME DEPENDENCIES
 .BR mako "(1), " makoctl "(1); a StatusNotifierItem tray host for the icon."
-Optional: a display-shape resolver (kanshi-autoscale) for per-shape sizing.
+Optional: a display-shape resolver (hwdp) for per-shape sizing.
 .SH SETUP
 .B ./setup.sh install
 links the shell tools + the mako config;

@@ -1,9 +1,9 @@
 #!/bin/sh
 # modules/tests/mako-placement - stub-driven. The placement is now AUTHORED per
 # shape in shapes/<shape>/mako.conf; this asserts mako-placement reads the shape
-# kanshi-autoscale reports, resolves @middle to the geometrically middle output
+# hwdp reports, resolves @middle to the geometrically middle output
 # (median x) on a wall, and uses the single shape's fragment verbatim otherwise.
-# kanshi-autoscale, wlr-randr and makoctl are stubbed; nothing on the box.
+# hwdp, wlr-randr and makoctl are stubbed; nothing on the box.
 set -eu
 
 . "$(dirname "$0")/lib.sh"
@@ -17,15 +17,15 @@ printf '#!/bin/sh\nexit 0\n' > "$T/bin/makoctl"; chmod +x "$T/bin/makoctl"
 printf 'anchor=top-right\n' > "$T/shapes/single/mako.conf"
 printf 'output=@middle\nanchor=bottom-center\n' > "$T/shapes/triple/mako.conf"
 
-# kanshi-autoscale shape -> echo $STUB_SHAPE; wlr-randr -> $STUB_N outputs, out
+# hwdp shape -> echo $STUB_SHAPE; wlr-randr -> $STUB_N outputs, out
 # of x-order so the median-by-position (not row order) is exercised.
-cat > "$T/bin/kanshi-autoscale" <<'EOF'
+cat > "$T/bin/hwdp" <<'EOF'
 #!/bin/sh
 [ "$1" = shape ] && { echo "${STUB_SHAPE:-single}"; exit 0; }
-# uiprofile: emit MAKO_FONT (empty unless STUB_MAKO_FONT set) -- the lo-res
+# ui: emit MAKO_FONT (empty unless STUB_MAKO_FONT set) -- the lo-res
 # signal mako-placement keys the density font+box append on.
-[ "$1" = uiprofile ] && { printf 'MAKO_FONT=%s\n' "${STUB_MAKO_FONT:-}"
-                          exit 0; }
+[ "$1" = ui ] && { printf 'MAKO_FONT=%s\n' "${STUB_MAKO_FONT:-}"
+                   exit 0; }
 exit 0
 EOF
 cat > "$T/bin/wlr-randr" <<'EOF'
@@ -37,7 +37,7 @@ case "${STUB_N:-3}" in
   *) one DP-3 4320; one DP-1 0; one DP-2 2160 ;;
 esac
 EOF
-chmod +x "$T/bin/kanshi-autoscale" "$T/bin/wlr-randr"
+chmod +x "$T/bin/hwdp" "$T/bin/wlr-randr"
 
 run() {   # STUB_SHAPE / STUB_N / STUB_MAKO_FONT in env
   env -i PATH="$T/bin:/usr/bin:/bin" HOME="$T/home" \

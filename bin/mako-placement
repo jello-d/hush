@@ -6,9 +6,9 @@
 # the shape config writes `output=@middle` and this resolves it to the live
 # middle connector (median x-position), so it survives a connector reshuffle.
 #
-# kanshi-autoscale (OPTIONAL) is the SSOT for the shape; a display-change hook
+# hwdp (OPTIONAL) is the SSOT for the shape; a display-change hook
 # runs this, and setup.sh seeds placement.active so mako can start before the
-# first run. With no shared shapes tree or no kanshi-autoscale, it falls back to
+# first run. With no shared shapes tree and no hwdp, it falls back to
 # hush's shipped default (a single-output placement); soft deps, degrade clean.
 set -eu
 
@@ -20,7 +20,7 @@ ACTIVE=${MAKO_ACTIVE:-$_cfg/mako/placement.active}
 _self=$(readlink -f "$0" 2>/dev/null || echo "$0")
 _default=${_self%/*}/../share/mako/default.conf
 
-_shape=$(kanshi-autoscale shape 2>/dev/null || true)
+_shape=$(hwdp shape 2>/dev/null || true)
 [ -n "$_shape" ] || _shape=single
 SRC=${MAKO_SRC:-$SHAPES/$_shape/mako.conf}
 [ -r "$SRC" ] || SRC=$SHAPES/single/mako.conf
@@ -55,10 +55,10 @@ fi
 # design panel (Inter 18, 525x350, 20px pad), so a low-res panel needs them all
 # much smaller. placement.active is include'd AFTER those lines, so options here
 # OVERRIDE them (mako is last-wins). The lo-res signal is MAKO_FONT being set by
-# the one resolver (kanshi-autoscale uiprofile, the SSOT like kitty/wayfire); on
+# the one resolver (`hwdp ui`, the SSOT like kitty/wayfire); on
 # a hi-res panel it is empty and the base config stands -- a strict no-op. The
 # box values scale ~0.6x with the font (525->320, 20->12, 80->48 icon).
-_mako_font=$(kanshi-autoscale uiprofile 2>/dev/null | sed -n s/^MAKO_FONT=//p)
+_mako_font=$(hwdp ui 2>/dev/null | sed -n s/^MAKO_FONT=//p)
 if [ -n "$_mako_font" ]; then
   {
     printf 'font=%s\n' "$_mako_font"
