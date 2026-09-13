@@ -1,8 +1,8 @@
 # Local dev context for an AI assistant: kept on disk, never in the public repo.
 CLAUDE.md
+CLAUDE.local.md
+.claude/
 
 # Python build/runtime detritus (the comms-indicator daemon).
 __pycache__/
 *.pyc
-CLAUDE.local.md
-.claude/
