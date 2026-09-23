@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """comms-indicator - an SNI tray icon for the notifications filter (all / work /
-only-work / none), drawn as an owned glyph (a near-black rounded tile, frame
-colour = state, and no frame at all when nominal) so it reads cleanly beside
-other status icons.
+only-work / none), drawn as an owned glyph: a bare chat glyph when nominal, and
+a near-black rounded tile with a state-coloured frame when not, so it reads
+cleanly beside other status icons.
 
 It is a thin PRESENTER: the state machine + mako integration stay in
 dnd-comms-toggle.sh (the single source). This daemon reads the state file to
@@ -24,26 +24,36 @@ from PIL import Image, ImageDraw
 # none = all comms muted. Frame carries the state; a
 # modifier (waves / dot / slash) disambiguates at a glance.
 #
-# NOMINAL DRAWS NO RING ("ring": False). The frame is the loudest channel this
-# icon has, and spending it on "nothing is happening" wasted it: a tray packs
-# status gadgets side by side and they all reach for green at rest, so a green
-# ring here was one of several and the eye had to sort greens to find the one
-# that had changed. Ringless, that inverts: ANY ring at all means something
-# wants you. The hue below is still the single source for the screen tint, so
-# nominal keeps a whisper of green without shouting it.
+# NOMINAL DRAWS NO TILE AT ALL ("tile": False): no frame, no screen, just the
+# chat glyph on transparency, grown to fill the space the chrome was using. The
+# tile is the loudest thing this icon has and spending it on "nothing is
+# happening" wasted it. A tray packs status gadgets side by side and they all
+# reach for green at rest, so a green frame here was one of several and the eye
+# had to sort greens to find the one that had changed. Bare, that inverts: ANY
+# tile at all means something wants you. It is also a CATEGORY difference
+# rather than a colour one -- every neighbour is a solid tile, so the nominal
+# state is the only thing on the bar that is not one -- and that survives a
+# glance far better than any hue could.
 #
-# Recolouring instead of unframing was tried and is wrong twice over. White or
-# off-white renders LOUDER than the green it replaces, so the icon shouts
-# hardest when nothing is wrong (and reads as "selected"). A neutral grey is
-# quiet enough, but grey is the conventional tray idiom for ABSENT -- daemon
-# down, nothing attached -- so it would say "fine" in the dialect its
-# neighbours use for "dead". Judge any candidate by RENDERING it against the
-# real bar background, not by reasoning about the hex: both of those failures
-# were invisible until they were on screen.
+# The frame is what carries the state, so THE TILE AND ITS FRAME TRAVEL
+# TOGETHER; one flag drives both. The attention states keep the near-black
+# screen, and they need it: `none` strikes a red slash across the glyph, which
+# goes muddy over the bar's mid-grey and only reads as a crisp strike on the
+# dark screen. `work`'s tan briefcase loses contrast the same way. So this is
+# not "transparency everywhere" -- transparency is what NOMINAL means.
+#
+# Recolouring instead was tried and is wrong twice over. White or off-white
+# renders LOUDER than the green it replaces, so the icon shouts hardest when
+# nothing is wrong (and reads as "selected"). A neutral grey is quiet enough,
+# but grey is the conventional tray idiom for ABSENT -- daemon down, nothing
+# attached -- so it would say "fine" in the dialect its neighbours use for
+# "dead". Judge any candidate by RENDERING it against the real bar background,
+# not by reasoning about the hex: every one of these failures was invisible
+# until it was on screen.
 STATE = {
-    "all":  {"frame": (0x4C, 0xC9, 0x5A), "ring": False},  # green -- flows
-    "work": {"frame": (0xF0, 0xB0, 0x28), "ring": True},   # amber -- work only
-    "none": {"frame": (0xE0, 0x44, 0x44), "ring": True},   # red -- muted
+    "all":  {"frame": (0x4C, 0xC9, 0x5A), "tile": False},  # green -- flows
+    "work": {"frame": (0xF0, 0xB0, 0x28), "tile": True},   # amber -- work only
+    "none": {"frame": (0xE0, 0x44, 0x44), "tile": True},   # red -- muted
 }
 ORDER = ("all", "work", "none")            # cycle order (matches the script)
 _BASE = (0x14, 0x15, 0x19)                 # near-black screen
@@ -57,13 +67,15 @@ _ICON_DIR = os.path.expanduser(
     os.environ.get("COMMS_ICONS", "~/.config/waybar/icons"))
 _ICON = {"all": "chat-all.png", "work": "chat-work.png",
          "none": "chat-none.png"}
-_ICON_H = 0.60     # icon height as a fraction of the tile (scaled down)
-_ICON_H_BARE = 0.76  # ... and when there is no ring, grown into the freed
-                     # border. Deliberately a visible step up from _ICON_H: the
-                     # glyph shrinking as a ring appears is a second, redundant
-                     # channel carrying the same "something changed" signal.
-                     # 0.80 crowds the corners, 0.68 leaves the tile looking
-                     # empty; 0.76 fills without touching.
+_ICON_H = 0.70     # icon height as a fraction of the tile, when tiled: close
+                   # to the frame without touching it (0.74 has the briefcase
+                   # colliding with the ring, 0.60 leaves dead screen around).
+_ICON_H_BARE = 0.86  # ... and when bare, grown into the space the whole tile
+                     # was using. Deliberately a visible step up from _ICON_H:
+                     # the glyph shrinking as the tile appears is a second,
+                     # redundant channel carrying the same "something changed"
+                     # signal. 0.96 crowds the neighbours and loses the icon's
+                     # implied padding; 0.86 fills without touching.
 _ICON_CY = 0.50    # icon vertical centre (fraction of the tile)
 _icons = {}        # cache of cropped originals
 # 'none' reuses the 'all' bubbles with a red slash struck through them.
@@ -112,16 +124,17 @@ def _tile(state, size):
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     st = STATE.get(state, STATE["none"])
-    ring = st.get("ring", True)
+    tiled = st.get("tile", True)
     m = _margin(s)
-    d.rounded_rectangle([m, m, s - 1 - m, s - 1 - m], max(2, s // 7),
-                        fill=_screen(state),
-                        outline=(st["frame"] + (0xFF,)) if ring else None,
-                        width=max(1, s // 11))
+    if tiled:
+        d.rounded_rectangle([m, m, s - 1 - m, s - 1 - m], max(2, s // 7),
+                            fill=_screen(state),
+                            outline=st["frame"] + (0xFF,),
+                            width=max(1, s // 11))
     # 'none' shows the 'all' bubbles struck through with a red slash.
     ic = _icon("all" if state == "none" else state)
     if ic is not None:
-        ih = max(1, int(round(s * (_ICON_H if ring else _ICON_H_BARE))))
+        ih = max(1, int(round(s * (_ICON_H if tiled else _ICON_H_BARE))))
         iw = max(1, int(round(ih * ic.width / ic.height)))
         ic = ic.resize((iw, ih), Image.LANCZOS)
         ox = (s - iw) // 2
@@ -147,14 +160,22 @@ def icon_pixmap(state, sizes=(22, 32, 48)):
     out = []
     for s in sizes:
         t = _tile(state, s)
-        # The tray fits each icon by its non-transparent bounding box. A glyph
-        # that does not reach the top edge is boxed a pixel lower than one that
-        # does, so the tray would size/place this icon inconsistently as the
-        # state changes. Stamp one invisible (alpha=1) pixel at the top-right
-        # corner so the box always reaches the top edge -- a stable box
-        # regardless of the drawn glyph, aligned with any other top-reaching
-        # status icon. Invisible on screen; bottom/left stay at the frame.
-        t.putpixel((s - 1, 0), (0, 0, 0, 1))
+        # The tray fits each icon by its non-transparent bounding box, so a
+        # glyph that stops short of an edge is boxed inside it and the tray
+        # sizes/places this icon inconsistently as the state changes. Stamp an
+        # invisible (alpha=1) pixel into any corner the art left clear, so the
+        # box is always the full square -- stable across states and aligned
+        # with any other full-bleed status icon.
+        #
+        # ALL FOUR corners, not just the top-right: while every state drew an
+        # opaque tile, the fill guaranteed a full-bleed box on its own and one
+        # top-right stamp was enough to pin the top edge. The nominal state is
+        # now a bare glyph on transparency, which reaches NO edge by itself --
+        # measured at 32px it boxed to (2, 0, 32, 30), i.e. two columns narrow
+        # and two rows short, so hush would visibly jump when toggled.
+        for xy in ((0, 0), (s - 1, 0), (0, s - 1), (s - 1, s - 1)):
+            if t.getpixel(xy)[3] == 0:
+                t.putpixel(xy, (0, 0, 0, 1))
         out.append([s, s, _to_argb(t)])
     return out
 
