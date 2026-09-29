@@ -4,7 +4,7 @@
 # thing) -> check -> uninstall -> assert gone. A scratch PREFIX; nothing outside
 # it is touched. `service` is not exercised: its venv build + systemctl reach
 # the real session/network.
-. "$(dirname "$0")/lib.sh"
+. "$(dirname "$0")/harness_lib"
 harness_init setup
 
 BIN=$T/bin; SHR=$T/share; CFG=$T/config

@@ -2,7 +2,7 @@
 # tools.t - every shipped script parses: the shell tools + setup.sh by their
 # shell (bash for the array/bash script, dash otherwise), the Python daemon via
 # py_compile (to a scratch .pyc, so no __pycache__ lands in the tree).
-. "$(dirname "$0")/lib.sh"
+. "$(dirname "$0")/harness_lib"
 harness_init tools
 
 _bad=0

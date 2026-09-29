@@ -1,4 +1,4 @@
-# test/lib.sh - a tiny harness for hush's tests, sourced by each *.t.
+# test/harness_lib - a tiny harness for hush's tests, sourced by each *.t.
 # Call `harness_init <name>`: sets HERE (the repo root), a private scratch dir T
 # (removed on exit), and fail/pass. POSIX sh; nothing outside T is touched.
 harness_init() {   # <name>

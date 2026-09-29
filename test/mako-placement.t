@@ -6,7 +6,7 @@
 # hwdp, wlr-randr and makoctl are stubbed; nothing on the box.
 set -eu
 
-. "$(dirname "$0")/lib.sh"
+. "$(dirname "$0")/harness_lib"
 harness_init mako-placement
 
 MP=$HERE/bin/mako-placement
