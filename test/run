@@ -5,8 +5,8 @@ set -eu
 _dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 _rc=0
 for _t in "$_dir"/*.t; do
-	[ -f "$_t" ] || continue
-	sh "$_t" || _rc=1
+  [ -f "$_t" ] || continue
+  sh "$_t" || _rc=1
 done
 [ "$_rc" -eq 0 ] && echo "all hush tests passed"
 exit "$_rc"
