@@ -1,5 +1,5 @@
 #!/bin/sh
-# mako-placement -- write the SHAPE's notification placement to mako's include
+# mako-placement: write the SHAPE's notification placement to mako's include
 # fragment (~/.config/mako/placement.active). Placement is shape-determined,
 # AUTHORED in ~/.config/shapes/<shape>/mako.conf, next to the rest of the shape
 # (grid, wallpaper, locker). The one DERIVED bit is the middle output of a wall:
@@ -56,7 +56,7 @@ fi
 # much smaller. placement.active is include'd AFTER those lines, so options here
 # OVERRIDE them (mako is last-wins). The lo-res signal is MAKO_FONT being set by
 # the one resolver (`hwdp ui`, the SSOT like kitty/wayfire); on
-# a hi-res panel it is empty and the base config stands -- a strict no-op. The
+# a hi-res panel it is empty and the base config stands, a strict no-op. The
 # box values scale ~0.6x with the font (525->320, 20->12, 80->48 icon).
 _mako_font=$(hwdp ui 2>/dev/null | sed -n s/^MAKO_FONT=//p)
 if [ -n "$_mako_font" ]; then

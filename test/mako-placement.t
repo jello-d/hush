@@ -22,7 +22,7 @@ printf 'output=@middle\nanchor=bottom-center\n' > "$T/shapes/triple/mako.conf"
 cat > "$T/bin/hwdp" <<'EOF'
 #!/bin/sh
 [ "$1" = shape ] && { echo "${STUB_SHAPE:-single}"; exit 0; }
-# ui: emit MAKO_FONT (empty unless STUB_MAKO_FONT set) -- the lo-res
+# ui: emit MAKO_FONT (empty unless STUB_MAKO_FONT set), the lo-res
 # signal mako-placement keys the density font+box append on.
 [ "$1" = ui ] && { printf 'MAKO_FONT=%s\n' "${STUB_MAKO_FONT:-}"
                    exit 0; }

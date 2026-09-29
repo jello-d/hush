@@ -7,7 +7,7 @@ border-size=3
 border-radius=6
 padding=20
 # Title one notch LARGER than the body (size="larger" is relative, so the
-# title stays a step above the body at any base font -- 11 on a low-res panel,
+# title stays a step above the body at any base font: 11 on a low-res panel,
 # 18 on the design). Body forced white so only the title carries the accent.
 format=<big><b>%s</b></big>\n<span foreground="#fff">%b</span>
 
@@ -16,7 +16,7 @@ width=525
 height=350
 margin=16
 
-# Position -- SHAPE-determined, authored in shapes/<shape>/mako.conf (a wall
+# Position: SHAPE-determined, authored in shapes/<shape>/mako.conf (a wall
 # centers on the middle output at the bottom, a single panel is top-right).
 # mako-placement (link/bin) resolves it each session into placement.active
 # (below); the config phase seeds that from the single shape so mako can start

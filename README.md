@@ -6,7 +6,7 @@ an SNI tray icon for the filter state.
 
 - **`dnd-comms-toggle`** cycles a trinary, application-based filter over mako:
   **all** flow, only **work** flow (personal muted), or **none**. What counts as
-  work vs personal is a mako rule (e.g. Slack vs Signal) -- hush carries no
+  work vs personal is a mako rule (e.g. Slack vs Signal); hush carries no
   notion of a work account or identity boundary.
 - **`mako-placement`** writes mako's `placement.active` include for the current
   display. It reads a per-shape config and the display density when a shape
@@ -26,8 +26,8 @@ git clone https://github.com/jello-d/hush ~/.hush
 
 `install` is the shell mechanism + config (what a provisioning layer delegates
 to); `service` is kept separate because the tray icon is a Python/D-Bus daemon
-(it builds its own venv -- no external runner needed). `setup.sh check` audits
-the install; `setup.sh uninstall` reverses it.
+(it builds its own venv, so no external runner is needed). `setup.sh check`
+audits the install; `setup.sh uninstall` reverses it.
 
 ## Dependencies
 

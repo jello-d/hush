@@ -31,22 +31,22 @@ from PIL import Image, ImageDraw
 # reach for green at rest, so a green frame here was one of several and the eye
 # had to sort greens to find the one that had changed. Bare, that inverts: ANY
 # tile at all means something wants you. It is also a CATEGORY difference
-# rather than a colour one -- every neighbour is a solid tile, so the nominal
-# state is the only thing on the bar that is not one -- and that survives a
-# glance far better than any hue could.
+# rather than a colour one, because every neighbour is a solid tile, so the
+# nominal state is the only thing on the bar that is not one, and that
+# survives a glance far better than any hue could.
 #
 # The frame is what carries the state, so THE TILE AND ITS FRAME TRAVEL
 # TOGETHER; one flag drives both. The attention states keep the near-black
 # screen, and they need it: `none` strikes a red slash across the glyph, which
 # goes muddy over the bar's mid-grey and only reads as a crisp strike on the
 # dark screen. `work`'s tan briefcase loses contrast the same way. So this is
-# not "transparency everywhere" -- transparency is what NOMINAL means.
+# not "transparency everywhere": transparency is what NOMINAL means.
 #
 # Recolouring instead was tried and is wrong twice over. White or off-white
 # renders LOUDER than the green it replaces, so the icon shouts hardest when
 # nothing is wrong (and reads as "selected"). A neutral grey is quiet enough,
-# but grey is the conventional tray idiom for ABSENT -- daemon down, nothing
-# attached -- so it would say "fine" in the dialect its neighbours use for
+# but grey is the conventional tray idiom for ABSENT (daemon down, nothing
+# attached), so it would say "fine" in the dialect its neighbours use for
 # "dead". Judge any candidate by RENDERING it against the real bar background,
 # not by reasoning about the hex: every one of these failures was invisible
 # until it was on screen.
@@ -164,7 +164,7 @@ def icon_pixmap(state, sizes=(22, 32, 48)):
         # glyph that stops short of an edge is boxed inside it and the tray
         # sizes/places this icon inconsistently as the state changes. Stamp an
         # invisible (alpha=1) pixel into any corner the art left clear, so the
-        # box is always the full square -- stable across states and aligned
+        # box is always the full square, stable across states and aligned
         # with any other full-bleed status icon.
         #
         # ALL FOUR corners, not just the top-right: while every state drew an
