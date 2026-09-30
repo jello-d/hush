@@ -88,7 +88,7 @@ do_uninstall() {
   _man_pages | while IFS= read -r _m; do
     _rmln "$_m" "$_man/$(basename "$(dirname "$_m")")/$(basename "$_m")"; done
   _rmln "$_root/share/mako/config" "$_cfg/mako/config"
-  # Only touch systemctl if the unit was actually installed -- so a sandboxed
+  # Only touch systemctl if the unit was actually installed, so a sandboxed
   # uninstall (a test) never reaches the real --user manager.
   if [ -e "$_usr/comms-indicator.service" ]; then
     systemctl --user disable --now comms-indicator.service 2>/dev/null || true

@@ -170,7 +170,7 @@ def icon_pixmap(state, sizes=(22, 32, 48)):
         # ALL FOUR corners, not just the top-right: while every state drew an
         # opaque tile, the fill guaranteed a full-bleed box on its own and one
         # top-right stamp was enough to pin the top edge. The nominal state is
-        # now a bare glyph on transparency, which reaches NO edge by itself --
+        # now a bare glyph on transparency, which reaches NO edge by itself,
         # measured at 32px it boxed to (2, 0, 32, 30), i.e. two columns narrow
         # and two rows short, so hush would visibly jump when toggled.
         for xy in ((0, 0), (s - 1, 0), (0, s - 1), (s - 1, s - 1)):
