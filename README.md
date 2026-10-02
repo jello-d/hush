@@ -29,6 +29,12 @@ to); `service` is kept separate because the tray icon is a Python/D-Bus daemon
 (it builds its own venv, so no external runner is needed). `setup.sh check`
 audits the install; `setup.sh uninstall` reverses it.
 
+The install is a COPY: everything lands in one tree, `~/.local/share/hush`
+(the tray's venv included), and the commands on PATH, the man page and
+`~/.config/mako/config` are symlinks into that tree. Nothing links back to the
+checkout, so it can be moved or deleted after installing. Re-run `install`
+to pick up changes. `setup.sh paths` lists every location hush uses.
+
 ## Dependencies
 
 `mako` + `makoctl` (the filter drives mako), and a StatusNotifierItem tray host
