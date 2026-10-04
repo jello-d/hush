@@ -82,6 +82,13 @@ _payload_stage() {
   for _d in bin libexec share man; do
     cp -R "$_root/$_d" "$_ps_new/" || { bad "could not copy $_d"; return 1; }
   done
+  # DROP BUILD DETRITUS. The repo gitignores __pycache__, so a clean clone has
+  # none, but the venv python RUNS the indicator out of the clone and writes it
+  # there, so a copy would ship it. A payload is what the repo ships, not what
+  # running it produced; stale bytecode for a module since renamed is the kind
+  # of thing that only ever confuses a later diagnosis.
+  find "$_ps_new" -name __pycache__ -type d -prune \
+    -exec rm -rf -- {} + 2>/dev/null || :
   if [ -d "$_pay/venv" ] && [ ! -L "$_pay/venv" ]; then
     mv -- "$_pay/venv" "$_ps_new/venv" || { bad "could not carry the venv"
       return 1; }
@@ -154,7 +161,7 @@ do_service() {
     return 1; }
   [ -d "$VENV" ] || python3 -m venv "$VENV"
   "$VENV/bin/pip" install -q --upgrade pip
-  "$VENV/bin/pip" install -q -r "$_pay/libexec/comms-indicator.reqs"
+  "$VENV/bin/pip" install -q -r "$_pay/share/comms-indicator.reqs"
   mkdir -p "$_bin"
   _launcher
   mkdir -p "$_usr"
