@@ -51,9 +51,9 @@ from PIL import Image, ImageDraw
 # not by reasoning about the hex: every one of these failures was invisible
 # until it was on screen.
 STATE = {
-    "all":  {"frame": (0x4C, 0xC9, 0x5A), "tile": False},  # green -- flows
-    "work": {"frame": (0xF0, 0xB0, 0x28), "tile": True},   # amber -- work only
-    "none": {"frame": (0xE0, 0x44, 0x44), "tile": True},   # red -- muted
+    "all":  {"frame": (0x4C, 0xC9, 0x5A), "tile": False},  # green: flows
+    "work": {"frame": (0xF0, 0xB0, 0x28), "tile": True},   # amber: work only
+    "none": {"frame": (0xE0, 0x44, 0x44), "tile": True},   # red: muted
 }
 ORDER = ("all", "work", "none")            # cycle order (matches the script)
 _BASE = (0x14, 0x15, 0x19)                 # near-black screen
