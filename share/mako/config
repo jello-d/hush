@@ -57,6 +57,36 @@ background-color=#001177cc
 border-color=#5599FF
 
 
+# mux: the host rides on the TITLE row, quietly.
+#
+# ONE CHARACTER DIFFERENT FROM THE GLOBAL FORMAT, a space where the default
+# has \n, and that is the whole trick. mux's notifier prints the host as the
+# FIRST LINE OF THE BODY and the real message after it, so joining summary and
+# body on one row puts the host beside the session and lets mux's own newline
+# make the break:
+#
+#   Claude finished: api (on northgate)     <- bold, then dim and normal
+#   your turn
+#
+# IT CANNOT BE DONE IN THE SUMMARY. mako interprets Pango in the format and in
+# the BODY, never in %s, so markup there would print its own tags. That is why
+# the dim span comes from mux's `toast-pango` hook (which emits body text) and
+# only the separator is decided here.
+#
+# THE BODY STAYS WHITE, exactly as the global format decides, so the accent
+# still belongs to the title alone. mux's dim span nests INSIDE this one and
+# wins for the host, which is the only part meant to recede.
+[app-name="mux"]
+format=<big><b>%s</b></big> <span foreground="#fff">%b</span>
+
+# AND AGAIN WHEN GROUPED, or the shape changes the moment a second session
+# speaks. `[grouped]` is one of mako's BUILT-IN criteria: it swaps in
+# `(%g) <b>%s</b>\n%b` and hides all but the first of a group, so without this
+# the second banner would silently go back to a two-row title. Only the format
+# is overridden here; the grouping and visibility rules are left alone.
+[app-name="mux" grouped]
+format=(%g) <big><b>%s</b></big> <span foreground="#fff">%b</span>
+
 # Two modes for filtering:
 #   dnd-personal - blocks Signal only (for "work" state)
 #   dnd-comms    - blocks both Signal and Slack (for "none" state)
