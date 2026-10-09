@@ -65,6 +65,50 @@ run check >/dev/null 2>&1 || fail "check drifted after a reinstall"
 # paths: the contract verb names the payload it just installed.
 run paths | grep -qx "payload	$PAY" || fail "paths does not name the payload"
 
+# --- A RUNNING MAKO IS TOLD TO RE-READ THE CONFIG WE JUST LINKED --------
+# WRITTEN BECAUSE ITS ABSENCE WAS A LIVE REGRESSION. mako keeps the config it
+# read AT STARTUP, so linking a fresh one changes nothing about the daemon.
+# A `[app-name="mux"]` rule here joins a banner's title and body onto one
+# row, and with both machines' mako days old every banner rendered on three
+# rows instead. The file was right and the daemon had never read it.
+#
+# DRIVEN THROUGH STUBS FOR BOTH HALVES, because the rule is conditional: a
+# box with no mako running must stay silent rather than reporting a reload it
+# did not do. `pgrep` is stubbed as well as `makoctl`, since the guard asks
+# whether mako is up and the test cannot start one.
+mkdir -p "$T/mstub"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >>"%s"\nexit 0\n' "$T/makoctl.log" \
+  >"$T/mstub/makoctl"
+printf '#!/bin/sh\nexit 0\n' >"$T/mstub/pgrep"
+chmod +x "$T/mstub/makoctl" "$T/mstub/pgrep"
+: >"$T/makoctl.log"
+_o=$(env PREFIX="$T" XDG_BIN_HOME="$BIN" XDG_DATA_HOME="$SHR" \
+  XDG_CONFIG_HOME="$CFG" NO_COLOR=1 PATH="$T/mstub:$PATH" \
+  sh "$HERE/setup.sh" install 2>&1) || fail "install errored with mako up"
+grep -qx 'reload' "$T/makoctl.log" \
+  || fail "install did not reload the running mako, so it keeps whatever
+config it read at startup: [$(cat "$T/makoctl.log")]"
+case $_o in
+  (*'reloaded the running mako'*) ;;
+  (*) fail "the reload was not reported: [$_o]" ;;
+esac
+
+# AND NO MAKO MEANS NO CLAIM. `pgrep` answering 1 is a box with none running,
+# which is ordinary (headless, pre-login, a container) and must not produce a
+# line saying something was reloaded.
+printf '#!/bin/sh\nexit 1\n' >"$T/mstub/pgrep"
+: >"$T/makoctl.log"
+_o=$(env PREFIX="$T" XDG_BIN_HOME="$BIN" XDG_DATA_HOME="$SHR" \
+  XDG_CONFIG_HOME="$CFG" NO_COLOR=1 PATH="$T/mstub:$PATH" \
+  sh "$HERE/setup.sh" install 2>&1) || fail "install errored with no mako"
+[ ! -s "$T/makoctl.log" ] \
+  || fail "with no mako running, install called makoctl anyway:
+[$(cat "$T/makoctl.log")]"
+case $_o in
+  (*'reloaded the running mako'*)
+    fail "with no mako running, install claimed it reloaded one: [$_o]" ;;
+esac
+
 # uninstall: the payload and links removed (no systemctl: no unit installed)
 run uninstall >/dev/null 2>&1 || fail "uninstall errored"
 [ -e "$BIN/mako-placement" ] && fail "mako-placement link not removed"

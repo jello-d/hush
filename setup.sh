@@ -134,7 +134,36 @@ do_install() {
   if [ -e "$_bin/comms-indicator" ] && [ -x "$VENV/bin/python" ]; then
     _launcher
   fi
+  _reload_mako
   echo "$PKG: installed to $_pay (+ links in $PREFIX and $_cfg/mako)"
+}
+
+# _reload_mako: a running mako keeps the config it read AT STARTUP, so an
+# install that refreshes the file changes nothing about the daemon until
+# somebody reloads it or logs out.
+#
+# IT COST A LIVE REGRESSION ON BOTH BOXES. A `[app-name="mux"]` rule here
+# joins a notification's title and body onto one row, which is what mux's
+# toast hook is built around. The rule was installed and both machines' mako
+# had been running for days, so every banner rendered on three rows with a
+# dim host line under the title. The file was right and the daemon had never
+# read it.
+#
+# SAID, NOT SWALLOWED, and never fatal: this is a nicety on an install path,
+# and a box with no mako running (headless, pre-login, a container) is the
+# ordinary case rather than an error. A reload does NOT restart mako, so no
+# notification is lost and the pid does not move, which is also why a
+# process-start-time check cannot tell you whether it happened.
+_reload_mako() {
+  command -v makoctl >/dev/null 2>&1 || return 0
+  pgrep -x mako >/dev/null 2>&1 || return 0
+  if makoctl reload >/dev/null 2>&1; then
+    echo "$PKG: reloaded the running mako so it reads this config"
+  else
+    echo "$PKG: could not reload mako; run 'makoctl reload' or log out,
+  or its config will be whatever it read at startup" >&2
+  fi
+  return 0
 }
 
 # _retire_old_venv: the pre-payload `~/.venvs/hush`. A REBUILD, NOT A MOVE (a
