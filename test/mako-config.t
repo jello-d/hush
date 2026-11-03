@@ -24,11 +24,34 @@ command -v mako >/dev/null 2>&1 || {
   printf 'skip %s (no mako)\n' "$TEST_NAME"
   exit 0; }
 
+# A SCRATCH HOME, seeded the way install seeds it, because the config
+# include's two files by `~` path and a missing include is itself a parse
+# failure. Reading the real ~/.config/mako instead made this test a question
+# about the box: it passed only because placement.active happened to exist.
+# The filter is RENDERED, not copied, with every kind of section the
+# generator can write, so the generator's own syntax is what gets parsed.
+# makoctl is stubbed and the runtime dir is scratch: a render reloads mako
+# and leaves a warning file, and neither may reach the live session.
+_H=$T/home
+mkdir -p "$_H/.config/mako" "$_H/.config/hush" "$T/stub" "$T/run"
+cp "$HERE/share/mako/default.conf" "$_H/.config/mako/placement.active"
+printf '#!/bin/sh\nexit 0\n' > "$T/stub/makoctl"; chmod +x "$T/stub/makoctl"
+printf '%s\n' 'work-from=origin' "origin-command=printf 'titan\\tx\\n'" \
+  'allow=mux' 'allow=Google Chrome' 'allow-critical=yes' \
+  > "$_H/.config/hush/config"
+env PATH="$T/stub:$PATH" XDG_RUNTIME_DIR="$T/run" \
+  XDG_CONFIG_HOME="$_H/.config" sh "$HERE/bin/dnd-comms-toggle" render \
+  || fail "the filter did not render"
+grep -qxF '[mode=hush-work app-name="titan" group-index=0]' \
+  "$_H/.config/mako/filter.active" \
+  || fail "the rendered filter carries no work origin, so its syntax is
+not what this test parses: $(cat "$_H/.config/mako/filter.active")"
+
 # BOUNDED, because on a box with no notification daemon and a live compositor
 # this would otherwise START one and sit there. Five seconds is far longer
 # than a parse and the output is all we read.
 _try() {   # <config> -> its output
-  timeout 5 mako -c "$1" >"$T/out" 2>&1 || true
+  HOME=$_H timeout 5 mako -c "$1" >"$T/out" 2>&1 || true
   cat "$T/out"
 }
 

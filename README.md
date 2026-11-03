@@ -4,10 +4,13 @@ A small notifications suite for a Wayland session running [mako](
 https://github.com/emersion/mako): a trinary filter, per-display placement, and
 an SNI tray icon for the filter state.
 
-- **`dnd-comms-toggle`** cycles a trinary, application-based filter over mako:
-  **all** flow, only **work** flow (personal muted), or **none**. What counts as
-  work vs personal is a mako rule (e.g. Slack vs Signal); hush carries no
-  notion of a work account or identity boundary.
+- **`dnd-comms-toggle`** cycles a trinary filter over mako: **all** flow, only
+  **work** flows, or **none**. `work` and `none` hide everything except an
+  allowlist (battery, agent alerts, anything critical: not personal comms),
+  and `work` also shows the work set. That set is either a hand-kept list of
+  app names, or, where work apps arrive through a relay that names their
+  origin, whatever a configured command prints, so work is decided by where a
+  notification came from. Configured in `~/.config/hush/config`; see hush(1).
 - **`mako-placement`** writes mako's `placement.active` include for the current
   display. It reads a per-shape config and the display density when a shape
   resolver is present, and falls back to a shipped single-output default

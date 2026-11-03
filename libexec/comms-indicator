@@ -80,6 +80,7 @@ _ICON_CY = 0.50    # icon vertical centre (fraction of the tile)
 _icons = {}        # cache of cropped originals
 # 'none' reuses the 'all' bubbles with a red slash struck through them.
 _RED = (0xE4, 0x46, 0x46, 0xFF)
+_WARN = (0xF4, 0xF4, 0xF6, 0xFF)   # the badge: the filter is not doing its job
 
 
 def _margin(s):
@@ -119,7 +120,29 @@ def _slash(d, s):
     d.line([p1, p2], fill=_RED, width=w)
 
 
-def _tile(state, size):
+def _badge(img, s):
+    # The filter could not do what its state promises (dnd-comms-toggle wrote
+    # a warning): a WHITE disc with a dark `!` in the lower-right corner, the
+    # one corner the `none` slash does not run through. White on purpose: the
+    # notes on this icon reject white for NOMINAL because it is the loudest
+    # thing on the bar, which is exactly right for "this is broken". Amber was
+    # tried first and vanished into the `work` frame.
+    d = ImageDraw.Draw(img)
+    r = max(3, int(round(s * 0.21)))
+    rim = max(1, s // 16)
+    x0 = y0 = s - 1 - 2 * r
+    d.ellipse([x0, y0, s - 1, s - 1], fill=_WARN,
+              outline=(0x14, 0x15, 0x19, 0xFF), width=rim)
+    if r >= 5:                   # too small for a glyph at 22px: a bare disc
+        w = max(1, int(round(r * 0.32)))
+        lx = x0 + r - w // 2     # the `!` column, w wide, centred
+        ink = _BASE + (0xFF,)
+        d.rectangle([lx, y0 + r * 0.45, lx + w - 1, y0 + r * 1.25], fill=ink)
+        d.rectangle([lx, y0 + r * 1.45, lx + w - 1, y0 + r * 1.45 + w - 1],
+                    fill=ink)
+
+
+def _tile(state, size, warn=False):
     s = size
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -142,6 +165,8 @@ def _tile(state, size):
         img.alpha_composite(ic, (ox, oy))
     if state == "none":
         _slash(d, s)
+    if warn:
+        _badge(img, s)
     return img
 
 
@@ -156,10 +181,10 @@ def _to_argb(img):
     return bytes(out)
 
 
-def icon_pixmap(state, sizes=(22, 32, 48)):
+def icon_pixmap(state, sizes=(22, 32, 48), warn=False):
     out = []
     for s in sizes:
-        t = _tile(state, s)
+        t = _tile(state, s, warn)
         # The tray fits each icon by its non-transparent bounding box, so a
         # glyph that stops short of an edge is boxed inside it and the tray
         # sizes/places this icon inconsistently as the state changes. Stamp an
@@ -184,6 +209,10 @@ def icon_pixmap(state, sizes=(22, 32, 48)):
 STATE_FILE = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "dnd-comms-state")
 TOGGLE = os.environ.get("COMMS_TOGGLE", "dnd-comms-toggle")  # resolved on PATH
+# What the filter could not do (an unreadable config, an unknown work set),
+# written by dnd-comms-toggle; empty or absent means nothing is wrong.
+WARN_FILE = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "dnd-comms-warn")
 
 
 def read_state():
@@ -194,11 +223,19 @@ def read_state():
     return v if v in STATE else "all"
 
 
+def read_warn():
+    try:
+        return open(WARN_FILE).read().strip()
+    except OSError:
+        return ""
+
+
 def _render_test(outdir):
     os.makedirs(outdir, exist_ok=True)
     for st in ORDER:
         sizes = (22, 32, 48, 96)
         cells = [(_tile(st, z), z) for z in sizes]
+        cells += [(_tile(st, z, True), z) for z in sizes]
         gap = 8
         w = sum(z for _, z in cells) + gap * (len(cells) + 1)
         sheet = Image.new("RGBA", (w, 96 + 2 * gap), (30, 30, 34, 255))
@@ -236,14 +273,16 @@ def _run():
         def __init__(self):
             super().__init__("org.kde.StatusNotifierItem")
             self._state = read_state()
-            self._pixmap = icon_pixmap(self._state)
+            self._warn = read_warn()
+            self._pixmap = icon_pixmap(self._state, warn=bool(self._warn))
 
         def refresh(self):
-            st = read_state()
-            if st != self._state:
-                self._state = st
-                self._pixmap = icon_pixmap(st)
+            st, wn = read_state(), read_warn()
+            if (st, wn) != (self._state, self._warn):
+                self._state, self._warn = st, wn
+                self._pixmap = icon_pixmap(st, warn=bool(wn))
                 self.NewIcon()
+                self.NewToolTip()
 
         @dbus_property(access=PropertyAccess.READ)
         def Category(self) -> "s":
@@ -283,7 +322,10 @@ def _run():
 
         @dbus_property(access=PropertyAccess.READ)
         def ToolTip(self) -> "(sa(iiay)ss)":
-            return ["", [], "notifications", TIP.get(self._state, "")]
+            tip = TIP.get(self._state, "")
+            if self._warn:
+                tip += "\n\nWARNING: " + self._warn
+            return ["", [], "notifications", tip]
 
         @dbus_property(access=PropertyAccess.READ)
         def ItemIsMenu(self) -> "b":
@@ -314,6 +356,10 @@ def _run():
 
         @signal()
         def NewIcon(self):
+            pass
+
+        @signal()
+        def NewToolTip(self):
             pass
 
     async def watch(item):

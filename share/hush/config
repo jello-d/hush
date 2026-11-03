@@ -1,0 +1,17 @@
+# hush's filter config: the SHIPPED DEFAULT, read only when
+# ~/.config/hush/config does not exist. That file REPLACES this one (no
+# merge), so copy this as a starting point. See hush(1) for every key.
+#
+# work-from=apps|origin   where the work set comes from
+# work-app=NAME           (apps) an app name that is work; repeat per app
+# origin-command=CMD      (origin) prints work app names, one per line; the
+#                         first field of each is used, and a non-zero exit
+#                         means the list is not trusted
+# allow=NAME              an app name that flows in EVERY state; repeat
+# allow-critical=yes|no   a critical-urgency notification flows in every state
+#
+# `work` hides everything but the allowlist and the work set; `none` hides
+# everything but the allowlist. Values are exact mako app names.
+work-from=apps
+work-app=Slack
+work-app=slack

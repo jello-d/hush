@@ -129,6 +129,11 @@ do_install() {
   _ln "$_pay/share/mako/config" "$_cfg/mako/config"
   [ -e "$_cfg/mako/placement.active" ] \
     || cp "$_pay/share/mako/default.conf" "$_cfg/mako/placement.active"
+  # The config include's filter.active too, and it is GENERATED, so it is
+  # rendered on every install rather than seeded once: a new hush may write
+  # it differently, and a stale filter would outlive the code that wrote it.
+  XDG_CONFIG_HOME=$_cfg "$_pay/bin/dnd-comms-toggle" render \
+    || bad "could not render $_cfg/mako/filter.active"
   # A tray launcher from before the payload execs the clone's daemon; rewrite
   # it now rather than leave it pointing there until the next `service`.
   if [ -e "$_bin/comms-indicator" ] && [ -x "$VENV/bin/python" ]; then
@@ -211,6 +216,8 @@ do_uninstall() {
     _rmln "$_pay/${_m#"$_root"/}" "$_d"; _rmln "$_m" "$_d"; done
   _rmln "$_pay/share/mako/config" "$_cfg/mako/config"
   _rmln "$_root/share/mako/config" "$_cfg/mako/config"
+  # Generated, and include'd only by the config just unlinked.
+  rm -f "$_cfg/mako/filter.active"
   # Only touch systemctl if the unit was actually installed, so a sandboxed
   # uninstall (a test) never reaches the real --user manager.
   if [ -e "$_usr/comms-indicator.service" ]; then
@@ -285,6 +292,13 @@ do_check() {
     = "$_pay/share/mako/config" ] \
     && ok "mako config links into the payload" \
     || bad "mako config does not link to $_pay/share/mako/config"
+  [ -e "$_cfg/mako/filter.active" ] \
+    && ok "notification filter rendered" \
+    || bad "no $_cfg/mako/filter.active (setup.sh install)"
+  # The filter's own complaint (an unreadable config, an unknown work set),
+  # surfaced here so an integrator's audit sees what the tray icon shows.
+  _w=${XDG_RUNTIME_DIR:-/tmp}/dnd-comms-warn
+  [ ! -s "$_w" ] || warn "filter: $(head -n 1 "$_w")"
   _check_no_source_links
   for _d in $DEPS; do
     command -v "$_d" >/dev/null 2>&1 && ok "dep $_d present" \
@@ -305,8 +319,10 @@ do_paths() {
     printf 'man\t%s\n' "$(_man_dest "$_m")"; done
   printf 'config\t%s\n'  "$_cfg/mako/config"
   printf 'state\t%s\n'   "$_cfg/mako/placement.active"
+  printf 'state\t%s\n'   "$_cfg/mako/filter.active"
   printf 'unit\t%s\n'    "$_usr/comms-indicator.service"
   printf 'runtime\t%s\n' "${XDG_RUNTIME_DIR:-/tmp}/dnd-comms-state"
+  printf 'runtime\t%s\n' "${XDG_RUNTIME_DIR:-/tmp}/dnd-comms-warn"
 }
 
 _U="usage: setup.sh [install|service|all|uninstall|check|test|version|paths]"

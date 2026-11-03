@@ -1,93 +1,250 @@
-#!/bin/bash
-# dnd-comms-toggle - Cycle through notification filter states
+#!/bin/sh
+# dnd-comms-toggle - the notifications filter over mako: all / work / none.
 #
-# States:
-#   all  - All notifications come through
-#   work - Only work (Slack); personal (Signal) blocked
-#   none - All comms (Signal + Slack) blocked
+#   dnd-comms-toggle              print the current state
+#   dnd-comms-toggle status       ... the same
+#   dnd-comms-toggle toggle       cycle all -> work -> none -> all
+#   dnd-comms-toggle set STATE    jump to all, work or none
+#   dnd-comms-toggle render       re-generate the filter (after the work set
+#                                 changed, say) and reload mako; no state change
 #
-# Usage:
-#   dnd-comms-toggle          # Print the current state
-#   dnd-comms-toggle toggle   # Cycle to next state
-#   dnd-comms-toggle set STATE  # Set specific state (all/work/none)
-#   dnd-comms-toggle status   # Print current state name
+# ONE MODEL, HIDE BY DEFAULT. `all` hides nothing. `work` hides everything
+# except the ALLOWLIST and the WORK SET; `none` hides everything except the
+# allowlist. The allowlist is what is never personal comms (battery, agent
+# alerts, a critical anything), so it flows in every state.
+#
+# THE WORK SET HAS TWO SOURCES (`work-from` in the config):
+#   apps    a hand-kept list of app names (`work-app=`), the standalone default
+#   origin  whatever app names a configured command prints, one per line, the
+#           first field of each (`origin-command=`). Where work apps run behind
+#           a relay that stamps every notification with its origin, this is
+#           the preferred mode: work is decided by where a notification CAME
+#           FROM, so no app list has to be kept, and the same app on both sides
+#           is classified correctly. hush knows nothing about what answers the
+#           command; the integrator names it.
+#
+# IF THE WORK SET CANNOT BE KNOWN (the command fails or prints nothing), `work`
+# HIDES NOTHING and says so, on stderr and in a warning file the tray icon
+# draws. Losing a work notification silently is the worse failure for a filter
+# whose whole job in that state is to let work through.
+#
+# mako matches criteria in file order and the LAST match of an option wins
+# (mako(5) CRITERIA; measured too), which is what "hide all, then un-hide" uses.
+# The generated file is include'd by hush's mako config; this script owns it.
+set -eu
 
-STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/dnd-comms-state"
+_run=${XDG_RUNTIME_DIR:-/tmp}
+STATE_FILE=$_run/dnd-comms-state
+WARN_FILE=$_run/dnd-comms-warn
+_cfg=${XDG_CONFIG_HOME:-$HOME/.config}
+_self=$(readlink -f "$0" 2>/dev/null || echo "$0")
+_default=${_self%/*/*}/share/hush/config
+# The user's (or integrator's) config REPLACES the shipped one; no merge, so
+# what is in effect is always one file you can read.
+CONF=${HUSH_CONFIG:-$_cfg/hush/config}
+[ -r "$CONF" ] || CONF=$_default
+FILTER=${MAKO_FILTER:-$_cfg/mako/filter.active}
 
-# Mako mode names
-MODE_BLOCK_PERSONAL="dnd-personal"  # Blocks Signal
-MODE_BLOCK_ALL="dnd-comms"          # Blocks Signal + Slack
+MODE_WORK=hush-work
+MODE_NONE=hush-none
+# The pre-filter mode names, cleared on every change so a box mid-upgrade
+# never keeps one active behind the new ones.
+LEGACY_MODES="dnd-personal dnd-comms"
 
-get_state() {
-    if [[ -f "$STATE_FILE" ]]; then
-        cat "$STATE_FILE"
-    else
-        echo "all"
-    fi
+say() { printf 'dnd-comms-toggle: %s\n' "$*" >&2; }
+
+# --- config: key=value lines, `#` comments, list keys repeat ----------------
+_KEYS='^(work-from|work-app|origin-command|allow|allow-critical)$'
+_conf_bad() {   # -> the offending lines; non-zero when there are none
+  awk -v keys="$_KEYS" '/^[ \t]*(#|$)/ { next }
+    { i = index($0, "="); k = substr($0, 1, i - 1)
+      gsub(/^[ \t]+|[ \t]+$/, "", k)
+      if (i == 0 || k !~ keys) { printf "  line %d: %s\n", NR, $0; bad = 1 } }
+    END { exit !bad }' "$CONF"
+}
+_conf() {   # <key> -> each value, one per line (a single-value key: the last)
+  awk -v k="$1" '/^[ \t]*(#|$)/ { next }
+    { i = index($0, "="); key = substr($0, 1, i - 1)
+      gsub(/^[ \t]+|[ \t]+$/, "", key)
+      if (key != k) next
+      v = substr($0, i + 1); gsub(/^[ \t]+|[ \t]+$/, "", v); print v }' "$CONF"
+}
+_one() { _conf "$1" | tail -n 1; }
+
+# A name lands inside a quoted mako criteria value, and mako refuses the WHOLE
+# config on one bad line, which silences every notification on the box. So a
+# name that could break the quoting is refused here instead.
+_names_ok() {   # <names, one per line> -> the first bad one; non-zero if none
+  printf '%s\n' "$1" | awk '/["\\]/ || /[[:cntrl:]]/ { print; f = 1; exit }
+    END { exit !f }'
 }
 
-set_state() {
-    local new_state="$1"
-    
-    # Clear all DND modes first
-    makoctl mode -r "$MODE_BLOCK_PERSONAL" 2>/dev/null
-    makoctl mode -r "$MODE_BLOCK_ALL" 2>/dev/null
-    
-    # Apply appropriate mode
-    case "$new_state" in
-        all)
-            # No modes - everything comes through
-            ;;
-        work)
-            # Block personal (Signal), allow work (Slack)
-            makoctl mode -a "$MODE_BLOCK_PERSONAL"
-            ;;
-        none)
-            # Block all comms
-            makoctl mode -a "$MODE_BLOCK_ALL"
-            ;;
-        *)
-            echo "Unknown state: $new_state" >&2
-            return 1
-            ;;
+# --- the work set -------------------------------------------------------------
+# _work_set: the work app names on stdout. Non-zero, with the reason on stderr,
+# when the set cannot be known; `work` then hides nothing.
+_work_set() {
+  case $(_one work-from) in
+  apps|'') _conf work-app ;;
+  origin)
+    _cmd=$(_one origin-command)
+    [ -n "$_cmd" ] || { echo "work-from=origin names no origin-command"; \
+      return 1; }
+    _rc=0
+    _out=$(sh -c "$_cmd" 2>/dev/null) || _rc=$?
+    _names=$(printf '%s\n' "$_out" | awk 'NF { print $1 }')
+    if [ "$_rc" -ne 0 ]; then
+      echo "'$_cmd' exited $_rc, so its list may be incomplete"; return 1
+    fi
+    [ -n "$_names" ] || { echo "'$_cmd' named no work origin"; return 1; }
+    printf '%s\n' "$_names" ;;
+  *) echo "work-from must be apps or origin, not '$(_one work-from)'"
+    return 1 ;;
+  esac
+}
+
+# --- the generated filter -----------------------------------------------------
+_section() {   # <mode> <criteria> <invisible>
+  printf '[mode=%s%s]\ninvisible=%s\n' "$1" "${2:+ $2}" "$3"
+}
+# _show: un-hide, WITHOUT undoing mako's grouping. mako hides every member of
+# a group but the first with its own built-in `[grouped] invisible=1`, and a
+# bare `invisible=0` after it shows them all again (measured: two banners of
+# one group, where mako draws one). So an ungrouped notification and the first
+# of a group are un-hidden, and the rest of a group stays as mako left it.
+_show() {   # <mode> <criteria>
+  _section "$1" "$2 !grouped" 0
+  _section "$1" "$2 group-index=0" 0
+}
+_exceptions() {   # <mode> <allow names> <critical yes|no>
+  printf '%s\n' "$2" | while IFS= read -r _n; do
+    [ -z "$_n" ] || _show "$1" "app-name=\"$_n\""
+  done
+  [ "$3" != yes ] || _show "$1" "urgency=critical"
+}
+
+# _filter: write the filter to stdout. Every failure is said on stderr, and an
+# unknown work set yields a `work` that hides nothing, never one that hides
+# work without saying so.
+_filter() {   # <work set or empty> <why empty, if unknown>
+  _allow=$(_conf allow)
+  _crit=$(_one allow-critical)
+  echo "# GENERATED by dnd-comms-toggle from $CONF; edits are overwritten."
+  echo "# include'd by hush's mako config. See hush(1)."
+  echo
+  echo "# none: everything hidden but the allowlist"
+  _section "$MODE_NONE" "" 1
+  _exceptions "$MODE_NONE" "$_allow" "$_crit"
+  echo
+  if [ -n "$2" ]; then
+    echo "# work: THE WORK SET IS UNKNOWN ($2),"
+    echo "# so nothing is hidden: losing work silently is the worse failure."
+    return 0
+  fi
+  echo "# work: everything hidden but the allowlist and the work set"
+  _section "$MODE_WORK" "" 1
+  _exceptions "$MODE_WORK" "$_allow" "$_crit"
+  printf '%s\n' "$1" | while IFS= read -r _n; do
+    [ -z "$_n" ] || _show "$MODE_WORK" "app-name=\"$_n\""
+  done
+}
+
+# render: regenerate the filter, reloading mako only when it changed. A config
+# that cannot be read keeps the last good filter (or, with none, writes one
+# that hides nothing, since mako will not start with its include missing), and
+# the warning names the problem either way.
+render() {
+  _warn=
+  if _lines=$(_conf_bad); then
+    _warn="$CONF has lines it does not understand:
+$_lines"
+  else
+    case $(_one allow-critical) in
+    yes|no|'') ;;
+    *) _warn="allow-critical must be yes or no in $CONF" ;;
     esac
-    
-    echo "$new_state" > "$STATE_FILE"
+  fi
+  if [ -z "$_warn" ] && _bad=$(_names_ok "$(_conf allow)
+$(_conf work-app)"); then
+    _warn="refusing app name '$_bad' in $CONF: a quote or backslash breaks
+the WHOLE mako config"
+  fi
+  if [ -n "$_warn" ]; then
+    _note "$_warn"
+    [ -e "$FILTER" ] || { mkdir -p "$(dirname "$FILTER")"
+      echo "# hush: config unreadable, nothing filtered" > "$FILTER"; }
+    return 0
+  fi
+
+  _why=
+  _set=$(_work_set 2>&1) || { _why=$_set; _set=; }
+  if [ -z "$_why" ] && _bad=$(_names_ok "$_set"); then
+    _why="refusing work origin '$_bad' (would break mako's whole config)"
+    _set=
+  fi
+
+  mkdir -p "$(dirname "$FILTER")"
+  _tmp=$(mktemp "$FILTER.XXXXXX")
+  _filter "$_set" "$_why" > "$_tmp"
+  if cmp -s "$_tmp" "$FILTER" 2>/dev/null; then
+    rm -f "$_tmp"
+  else
+    mv "$_tmp" "$FILTER"
+    # Only a RUNNING mako is told; with none there is nothing to reload, and
+    # an install on a headless box must not call makoctl at all.
+    if pgrep -x mako >/dev/null 2>&1; then
+      makoctl reload >/dev/null 2>&1 || :
+    fi
+  fi
+  if [ -n "$_why" ]; then
+    _note "the work set is unknown, so 'work' hides nothing: $_why"
+  else
+    rm -f "$WARN_FILE"
+  fi
+}
+
+_note() {   # <message>: said on stderr AND left for the tray icon to draw
+  say "$1"
+  printf '%s\n' "$1" > "$WARN_FILE" 2>/dev/null || :
+}
+
+# --- state -------------------------------------------------------------------
+get_state() {
+  _s=$(cat "$STATE_FILE" 2>/dev/null || :)
+  case $_s in all|work|none) echo "$_s" ;; *) echo all ;; esac
+}
+
+set_state() {   # <state>
+  case $1 in
+  all|work|none) ;;
+  *) say "unknown state '$1' (all, work or none)"; return 2 ;;
+  esac
+  render
+  for _m in "$MODE_WORK" "$MODE_NONE" $LEGACY_MODES; do
+    makoctl mode -r "$_m" >/dev/null 2>&1 || :
+  done
+  case $1 in
+  work) makoctl mode -a "$MODE_WORK" >/dev/null ;;
+  none) makoctl mode -a "$MODE_NONE" >/dev/null ;;
+  esac
+  echo "$1" > "$STATE_FILE"
 }
 
 cycle_state() {
-    local current
-    current=$(get_state)
-    
-    case "$current" in
-        all)  set_state "work" ;;
-        work) set_state "none" ;;
-        none) set_state "all" ;;
-        *)    set_state "all" ;;
-    esac
+  case $(get_state) in
+  all)  set_state work ;;
+  work) set_state none ;;
+  *)    set_state all ;;
+  esac
 }
 
-# Initialize state file if missing
-if [[ ! -f "$STATE_FILE" ]]; then
-    echo "all" > "$STATE_FILE"
-fi
-
-case "${1:-}" in
-    toggle)
-        cycle_state
-        ;;
-    set)
-        if [[ -n "${2:-}" ]]; then
-            set_state "$2"
-        else
-            echo "Usage: $0 set STATE" >&2
-            exit 1
-        fi
-        ;;
-    status)
-        get_state
-        ;;
-    *)
-        get_state       # a bare call prints the current state
-        ;;
+case ${1:-status} in
+  toggle) cycle_state ;;
+  set)
+    [ -n "${2:-}" ] || { say "usage: dnd-comms-toggle set STATE"; exit 2; }
+    set_state "$2" ;;
+  render) render ;;
+  status) get_state ;;
+  -h|--help|help)
+    echo "usage: dnd-comms-toggle [status|toggle|set STATE|render]" ;;
+  *) say "unknown command '$1'"; exit 2 ;;
 esac

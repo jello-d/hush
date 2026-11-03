@@ -3,7 +3,7 @@
 hush \- a trinary notifications filter, placement, and tray icon for mako
 .SH SYNOPSIS
 .B dnd-comms-toggle
-.RB [ toggle | status | "set " STATE ]
+.RB [ status | toggle | "set " STATE | render ]
 .br
 .B mako-placement
 .br
@@ -18,15 +18,46 @@ command; the three tools below are invoked by name (the tray icon runs as a
 .B --user
 service).
 .PP
-The FILTER is trinary and application-based, not identity-based: it cycles a
-mako mode set so notifications flow, or only "work" flows (personal muted), or
-all are muted. What counts as work vs personal is a mako rule (e.g. Slack vs
-Signal), so hush carries no notion of a work account or boundary.
+The FILTER is trinary:
+.B all
+hides nothing;
+.B work
+hides everything except the ALLOWLIST and the WORK SET;
+.B none
+hides everything except the allowlist. The allowlist is what is never
+personal comms (a battery warning, an agent's alert, anything critical), so
+it flows in every state.
+.PP
+The work set comes from one of two places. In
+.B apps
+mode (the default) it is a hand-kept list of app names. In
+.B origin
+mode it is whatever a configured command prints: where work apps run behind
+a relay that stamps every notification with its origin as the app name, work
+is decided by where a notification CAME FROM, so no app list is kept and the
+same app on both sides is classified correctly. hush knows nothing about
+what answers the command; an integrator names it.
+.PP
+If the work set cannot be known (the command fails or prints nothing),
+.B work
+hides NOTHING and says so: on stderr, in
+.BR "setup.sh check" ,
+and as a badge on the tray icon. A silently lost work notification is the
+worse failure.
 .SH TOOLS
 .TP
 .B dnd-comms-toggle
-The filter state machine. `toggle` cycles all -> work -> none; `set <state>`
-jumps to one; a bare call prints the state as waybar JSON. It drives mako via
+The filter state machine.
+.B toggle
+cycles all, work, none;
+.BI "set " state
+jumps to one; a bare call (or
+.BR status )
+prints the state.
+Every change re-renders the filter first, so the work set is current.
+.B render
+re-renders it alone (and reloads a running mako): an integrator runs it
+when the work set changes. It drives mako via
 .BR makoctl " mode."
 State lives in
 .IR $XDG_RUNTIME_DIR/dnd-comms-state .
@@ -44,14 +75,57 @@ dependencies; hush degrades cleanly without them.
 An SNI tray icon drawn as an owned glyph (a rounded tile, frame colour = state).
 It reads the filter state to draw and left-click cycles it via
 .BR dnd-comms-toggle .
+A white
+.B !
+badge, and a line in the tooltip, mean the filter could not do what its
+state promises.
 Runs as the
 .I comms-indicator.service
 .B --user
 unit (a venv-backed Python daemon; needs a tray host).
+.SH CONFIGURATION
+.I ~/.config/hush/config
+(else the shipped
+.IR share/hush/config ,
+which it REPLACES rather than merges with): one
+.IB key = value
+per line,
+.B #
+comments, list keys repeated once per entry. Names are exact mako app names.
+.TP
+.BR work-from= apps | origin
+where the work set comes from (default
+.BR apps ).
+.TP
+.BI work-app= name
+(apps) an app that is work.
+.TP
+.BI origin-command= command
+(origin) run with
+.BR sh ;
+the first field of each output line is a work app name. A non-zero exit means
+the list is not trusted.
+.TP
+.BI allow= name
+an app that flows in every state.
+.TP
+.BR allow-critical= yes | no
+a critical-urgency notification flows in every state.
+.PP
+An unknown key, or a name with a quote or backslash (which would break mako's
+WHOLE config), keeps the last good filter and is reported like an unknown work
+set.
 .SH FILES
 .TP
 .I ~/.config/mako/config
-hush's mako config (appearance + the dnd modes); include's placement.active.
+hush's mako config (appearance + layout); include's placement.active and
+filter.active.
+.TP
+.I ~/.config/mako/filter.active
+The generated filter. Do not edit; it is rewritten on every change.
+.TP
+.I $XDG_RUNTIME_DIR/dnd-comms-warn
+What the filter could not do, if anything; read by the tray icon.
 .TP
 .I ~/.config/shapes/<shape>/mako.conf
 Optional per-shape placement/sizing (a shared, integrator-owned tree); read when

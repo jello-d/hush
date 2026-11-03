@@ -9,9 +9,17 @@
 harness_init setup
 
 BIN=$T/bin; SHR=$T/share; CFG=$T/config; PAY=$SHR/hush
+# makoctl and pgrep stubbed silent, and a scratch runtime dir: install
+# renders the filter and reloads a running mako, and neither the live daemon
+# nor the live warning file may be reached from here.
+mkdir -p "$T/stub" "$T/run"
+for _s in hwdp makoctl wlr-randr pgrep; do
+  printf '#!/bin/sh\nexit 0\n' > "$T/stub/$_s"; chmod +x "$T/stub/$_s"; done
+printf '#!/bin/sh\nexit 1\n' > "$T/stub/pgrep"
 run() {
   env PREFIX="$T" XDG_BIN_HOME="$BIN" XDG_DATA_HOME="$SHR" \
-    XDG_CONFIG_HOME="$CFG" NO_COLOR=1 sh "$HERE/setup.sh" "$@"
+    XDG_CONFIG_HOME="$CFG" XDG_RUNTIME_DIR="$T/run" NO_COLOR=1 \
+    PATH="$T/stub:$PATH" sh "$HERE/setup.sh" "$@"
 }
 
 # A pre-payload install: links straight into the source tree. install must
@@ -34,6 +42,11 @@ for _d in bin libexec share man; do
 [ "$(readlink "$SHR/man/man1/hush.1")" = "$PAY/man/man1/hush.1" ] \
   || fail "man page not linked into the payload"
 [ -e "$CFG/mako/placement.active" ] || fail "placement.active not seeded"
+# the filter the config include's: RENDERED by install, from the payload's
+# shipped default config (no user config in the sandbox), or mako cannot start
+grep -qxF '[mode=hush-work app-name="Slack" !grouped]' \
+  "$CFG/mako/filter.active" 2>/dev/null \
+  || fail "install did not render the filter from the payload's default"
 [ -e "$BIN/comms-indicator" ] && fail "install made the tray launcher (service)"
 for _l in "$BIN"/* "$SHR"/man/man1/* "$CFG/mako/config"; do
   case $(readlink -f "$_l") in
@@ -44,9 +57,7 @@ done
 # self-location: the installed mako-placement finds the PAYLOAD's default.
 # hwdp and makoctl stubbed silent, so no shape is found and the live mako is
 # never told to reload.
-_act=$T/active.out; mkdir -p "$T/stub"
-for _s in hwdp makoctl wlr-randr; do
-  printf '#!/bin/sh\nexit 0\n' > "$T/stub/$_s"; chmod +x "$T/stub/$_s"; done
+_act=$T/active.out
 env MAKO_SHAPES="$T/none" MAKO_ACTIVE="$_act" PATH="$T/stub:/usr/bin:/bin" \
   "$BIN/mako-placement" >/dev/null 2>&1 || :
 cmp -s "$_act" "$PAY/share/mako/default.conf" \
@@ -83,7 +94,8 @@ printf '#!/bin/sh\nexit 0\n' >"$T/mstub/pgrep"
 chmod +x "$T/mstub/makoctl" "$T/mstub/pgrep"
 : >"$T/makoctl.log"
 _o=$(env PREFIX="$T" XDG_BIN_HOME="$BIN" XDG_DATA_HOME="$SHR" \
-  XDG_CONFIG_HOME="$CFG" NO_COLOR=1 PATH="$T/mstub:$PATH" \
+  XDG_CONFIG_HOME="$CFG" XDG_RUNTIME_DIR="$T/run" NO_COLOR=1 \
+  PATH="$T/mstub:$PATH" \
   sh "$HERE/setup.sh" install 2>&1) || fail "install errored with mako up"
 grep -qx 'reload' "$T/makoctl.log" \
   || fail "install did not reload the running mako, so it keeps whatever
@@ -99,7 +111,8 @@ esac
 printf '#!/bin/sh\nexit 1\n' >"$T/mstub/pgrep"
 : >"$T/makoctl.log"
 _o=$(env PREFIX="$T" XDG_BIN_HOME="$BIN" XDG_DATA_HOME="$SHR" \
-  XDG_CONFIG_HOME="$CFG" NO_COLOR=1 PATH="$T/mstub:$PATH" \
+  XDG_CONFIG_HOME="$CFG" XDG_RUNTIME_DIR="$T/run" NO_COLOR=1 \
+  PATH="$T/mstub:$PATH" \
   sh "$HERE/setup.sh" install 2>&1) || fail "install errored with no mako"
 [ ! -s "$T/makoctl.log" ] \
   || fail "with no mako running, install called makoctl anyway:
@@ -113,6 +126,7 @@ esac
 run uninstall >/dev/null 2>&1 || fail "uninstall errored"
 [ -e "$BIN/mako-placement" ] && fail "mako-placement link not removed"
 [ -e "$CFG/mako/config" ] && fail "mako config link not removed"
+[ -e "$CFG/mako/filter.active" ] && fail "the generated filter was left"
 [ -e "$PAY" ] && fail "payload not removed"
 
 pass "install + check + reinstall + uninstall"
