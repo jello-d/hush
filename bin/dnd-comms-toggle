@@ -148,43 +148,52 @@ _filter() {   # <work set or empty> <why empty, if unknown>
   done
 }
 
-# render: regenerate the filter, reloading mako only when it changed. A config
-# that cannot be read keeps the last good filter (or, with none, writes one
-# that hides nothing, since mako will not start with its include missing), and
-# the warning names the problem either way.
-render() {
-  _warn=
+# _config_problem: why the config cannot be used, on stdout; nothing if fine.
+_config_problem() {
   if _lines=$(_conf_bad); then
-    _warn="$CONF has lines it does not understand:
-$_lines"
-  else
-    case $(_one allow-critical) in
-    yes|no|'') ;;
-    *) _warn="allow-critical must be yes or no in $CONF" ;;
-    esac
-  fi
-  if [ -z "$_warn" ] && _bad=$(_names_ok "$(_conf allow)
-$(_conf work-app)"); then
-    _warn="refusing app name '$_bad' in $CONF: a quote or backslash breaks
-the WHOLE mako config"
-  fi
-  if [ -n "$_warn" ]; then
-    _note "$_warn"
-    [ -e "$FILTER" ] || { mkdir -p "$(dirname "$FILTER")"
-      echo "# hush: config unreadable, nothing filtered" > "$FILTER"; }
+    printf '%s has lines it does not understand:\n%s\n' "$CONF" "$_lines"
     return 0
   fi
+  case $(_one allow-critical) in
+  yes|no|'') ;;
+  *) echo "allow-critical must be yes or no in $CONF"; return 0 ;;
+  esac
+  if _bad=$(_names_ok "$(_conf allow)
+$(_conf work-app)"); then
+    echo "refusing app name '$_bad' in $CONF: a quote or backslash breaks"
+    echo "the WHOLE mako config"
+  fi
+}
 
+# _want: the filter render WOULD write, into <file>. Sets _set (the work set)
+# and _why (why it is unknown; empty when known). ONE computation for render,
+# check and probe, so what is written, what is audited and what is promised
+# cannot disagree.
+_want() {   # <file>
   _why=
   _set=$(_work_set 2>&1) || { _why=$_set; _set=; }
   if [ -z "$_why" ] && _bad=$(_names_ok "$_set"); then
     _why="refusing work origin '$_bad' (would break mako's whole config)"
     _set=
   fi
+  _filter "$_set" "$_why" > "$1"
+}
 
+# render: regenerate the filter, reloading mako only when it changed. A config
+# that cannot be read keeps the last good filter (or, with none, writes one
+# that hides nothing, since mako will not start with its include missing), and
+# the warning names the problem either way.
+render() {
+  _warn=$(_config_problem)
+  if [ -n "$_warn" ]; then
+    _note "$_warn"
+    [ -e "$FILTER" ] || { mkdir -p "$(dirname "$FILTER")"
+      echo "# hush: config unreadable, nothing filtered" > "$FILTER"; }
+    return 0
+  fi
   mkdir -p "$(dirname "$FILTER")"
   _tmp=$(mktemp "$FILTER.XXXXXX")
-  _filter "$_set" "$_why" > "$_tmp"
+  _want "$_tmp"
   if cmp -s "$_tmp" "$FILTER" 2>/dev/null; then
     rm -f "$_tmp"
   else
@@ -202,9 +211,75 @@ the WHOLE mako config"
   fi
 }
 
+# check: is the filter on disk what render would write NOW? Exit 0 yes, 1 no
+# (one line on stdout says why). Writes nothing.
+#
+# WRITTEN BECAUSE A STALE FILTER WAS LIVE: the filter is rendered only on a
+# state change, an install and an explicit render, so a config placed AFTER
+# hush's install (an integrator's sweep, racing) left the shipped default's
+# filter in force, while an existence check reported it fine. A changed work
+# set (an enclave added) is the same staleness, and this sees both.
+check() {
+  _warn=$(_config_problem)
+  [ -z "$_warn" ] || { echo "the config cannot be used: $_warn"; return 1; }
+  [ -e "$FILTER" ] || { echo "there is no filter at $FILTER"; return 1; }
+  _tmp=$(mktemp)
+  _want "$_tmp"
+  if cmp -s "$_tmp" "$FILTER"; then
+    rm -f "$_tmp"; return 0
+  fi
+  rm -f "$_tmp"
+  echo "$FILTER is stale against $CONF and the current work set"
+  return 1
+}
+
 _note() {   # <message>: said on stderr AND left for the tray icon to draw
   say "$1"
   printf '%s\n' "$1" > "$WARN_FILE" 2>/dev/null || :
+}
+
+# --- probe: what should show in the CURRENT state, sent for real ------------
+# One notification per class the filter decides on, each titled with what it
+# should do here. Look at the screen: every banner that appears must say
+# SHOWN, and a banner saying HIDDEN is a failure. Toggle and run it again for
+# the other states. The work origin is sent DIRECTLY under its name, so this
+# tests the filter, not the relay that would normally carry it; the relay is
+# the work side's to send through (the line printed last says how).
+_expect() {   # <shows in all> <in work> <in none> -> SHOWN or HIDDEN
+  case $(get_state) in
+  all)  _e=$1 ;;
+  work) _e=$2 ;;
+  *)    _e=$3 ;;
+  esac
+  [ "$_e" = y ] && echo SHOWN || echo HIDDEN
+}
+_probe_one() {   # <app> <urgency> <what> <all> <work> <none>
+  _x=$(_expect "$4" "$5" "$6")
+  notify-send -a "$1" -u "$2" "hush probe: $3 should be $_x" \
+    "state $(get_state); app name '$1'"
+  printf '  %-7s %s (app %s)\n' "$_x" "$3" "$1"
+}
+probe() {
+  _warn=$(_config_problem)
+  [ -z "$_warn" ] || { say "$_warn"; return 1; }
+  command -v notify-send >/dev/null 2>&1 \
+    || { say "probe needs notify-send"; return 1; }
+  _t=$(mktemp); _want "$_t"; rm -f "$_t"
+  # an unknown work set means `work` hides nothing, so expect that too
+  _w=n; [ -z "$_why" ] || _w=y
+  _a=$(_conf allow | head -n 1)
+  echo "state $(get_state); sent, and what each must do:"
+  _probe_one hush-probe-personal normal "a personal app" y "$_w" n
+  [ -z "$_a" ] || _probe_one "$_a" normal "an allowed app" y y y
+  [ "$(_one allow-critical)" != yes ] \
+    || _probe_one hush-probe-critical critical "a critical personal" y y y
+  _o=$(printf '%s\n' "$_set" | head -n 1)
+  [ -z "$_o" ] || _probe_one "$_o" normal "work ($_o, sent directly)" y y n
+  [ -z "$_why" ] || echo "  (the work set is unknown, so work hides nothing:"\
+    "$_why)"
+  echo "Any banner saying HIDDEN is a failure; toggle and rerun for the others."
+  [ "$(_one work-from)" != origin ] || [ -z "$_o" ] || echo "Through the" \
+    "relay too: work run $_o -- notify-send 'hush probe: via the relay'"
 }
 
 # --- state -------------------------------------------------------------------
@@ -243,8 +318,11 @@ case ${1:-status} in
     [ -n "${2:-}" ] || { say "usage: dnd-comms-toggle set STATE"; exit 2; }
     set_state "$2" ;;
   render) render ;;
+  check) check ;;
+  probe) probe ;;
   status) get_state ;;
   -h|--help|help)
-    echo "usage: dnd-comms-toggle [status|toggle|set STATE|render]" ;;
+    echo "usage: dnd-comms-toggle [status|toggle|set STATE|render|check|probe]"
+    ;;
   *) say "unknown command '$1'"; exit 2 ;;
 esac

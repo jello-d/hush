@@ -136,4 +136,53 @@ tog render
 [ -e "$F" ] || fail "no filter at all was left, so mako cannot start"
 grep -q '^\[' "$F" && fail "a filter from an unreadable config filters"
 
-pass "apps + origin + allowlist + failure paths"
+# --- check: current, or stale, and it writes nothing ------------------------
+sed -i '/ba"d/d' "$CONF"   # the case above left its bad name behind
+tog render
+tog check
+[ "$RC" = 0 ] || fail "check called a fresh render stale: $(cat "$T/out")"
+cp "$F" "$T/before"
+echo 'allow=vigilance' >> "$CONF"
+tog check
+[ "$RC" = 1 ] && grep -q stale "$T/out" \
+  || fail "check missed a config changed after the render (rc $RC)"
+cmp -s "$F" "$T/before" || fail "check wrote the filter"
+tog render
+tog check
+[ "$RC" = 0 ] || fail "check still stale after a render: $(cat "$T/out")"
+printf 'titan\nnewco\n' > "$T/enclaves"
+tog check
+[ "$RC" = 1 ] || fail "check missed a work set that changed (rc $RC)"
+tog render
+mv "$F" "$T/gone"
+tog check
+[ "$RC" = 1 ] || fail "check passed with no filter at all"
+mv "$T/gone" "$F"
+
+# --- probe: each class titled with what it must do in THIS state ------------
+printf '#!/bin/sh\nprintf "%%s|%%s|%%s\\n" "$2" "$4" "$5" >> "%s"\n' \
+  "$T/sent" > "$T/stub/notify-send"
+chmod +x "$T/stub/notify-send"
+_probe_in() {   # <state> -> $T/sent
+  echo "$1" > "$T/run/dnd-comms-state"; : > "$T/sent"; tog probe
+  [ "$RC" = 0 ] || fail "probe failed in $1: $(cat "$T/out")"
+}
+_says() {   # <app> <SHOWN|HIDDEN>
+  grep -q "^$1|.*should be $2\$" "$T/sent" \
+    || fail "probe in $_ps: $1 should say $2: $(cat "$T/sent")"
+}
+_ps=work; _probe_in work
+_says hush-probe-personal HIDDEN; _says mux SHOWN
+_says hush-probe-critical SHOWN; _says titan SHOWN
+_ps=none; _probe_in none
+_says hush-probe-personal HIDDEN; _says titan HIDDEN; _says mux SHOWN
+_ps=all; _probe_in all
+_says hush-probe-personal SHOWN; _says titan SHOWN
+grep -q 'work run titan' "$T/out" || fail "probe did not say how to send
+through the relay"
+# an unknown work set: work hides nothing, so probe must promise that
+sed -i "s|^origin-command=.*|origin-command=false|" "$CONF"
+_ps="work, unknown set"; _probe_in work
+_says hush-probe-personal SHOWN
+
+pass "apps + origin + allowlist + failure paths + check + probe"

@@ -3,7 +3,7 @@
 hush \- a trinary notifications filter, placement, and tray icon for mako
 .SH SYNOPSIS
 .B dnd-comms-toggle
-.RB [ status | toggle | "set " STATE | render ]
+.RB [ status | toggle | "set " STATE | render | check | probe ]
 .br
 .B mako-placement
 .br
@@ -57,7 +57,20 @@ prints the state.
 Every change re-renders the filter first, so the work set is current.
 .B render
 re-renders it alone (and reloads a running mako): an integrator runs it
-when the work set changes. It drives mako via
+when the work set changes.
+.B check
+exits non-zero, saying why, when the filter on disk is not what
+.B render
+would write now (a config or work set changed since);
+.B "setup.sh check"
+runs it.
+.B probe
+sends one notification per class the filter decides on (a personal app, an
+allowed one, a critical one, the work origin), each titled with whether it
+should be SHOWN or HIDDEN in the current state: any banner saying HIDDEN is
+a failure. The work origin is sent directly, so it tests the filter and not a
+relay; in origin mode the last line printed says how to send through one.
+It drives mako via
 .BR makoctl " mode."
 State lives in
 .IR $XDG_RUNTIME_DIR/dnd-comms-state .

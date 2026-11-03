@@ -292,9 +292,14 @@ do_check() {
     = "$_pay/share/mako/config" ] \
     && ok "mako config links into the payload" \
     || bad "mako config does not link to $_pay/share/mako/config"
-  [ -e "$_cfg/mako/filter.active" ] \
-    && ok "notification filter rendered" \
-    || bad "no $_cfg/mako/filter.active (setup.sh install)"
+  # CURRENT, not merely present: the filter is rendered only on a state
+  # change or an install, so a config placed after the install (an
+  # integrator's sweep racing hush's) left a stale one in force while an
+  # existence check called it fine. Drift here makes the integrator reinstall,
+  # and install re-renders.
+  if _st=$(XDG_CONFIG_HOME=$_cfg "$_pay/bin/dnd-comms-toggle" check 2>&1)
+  then ok "notification filter current"
+  else bad "notification filter: $_st (setup.sh install re-renders it)"; fi
   # The filter's own complaint (an unreadable config, an unknown work set),
   # surfaced here so an integrator's audit sees what the tray icon shows.
   _w=${XDG_RUNTIME_DIR:-/tmp}/dnd-comms-warn

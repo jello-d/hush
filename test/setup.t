@@ -66,6 +66,18 @@ cmp -s "$_act" "$PAY/share/mako/default.conf" \
 # check: green on a canonical install (deps may WARN in a sandbox, not FAIL)
 run check >/dev/null 2>&1 || fail "check drifted on a canonical install"
 
+# A CONFIG PLACED AFTER THE INSTALL leaves the old filter in force, which was
+# live once (an integrator's sweep racing hush's install). check must call it
+# drift, so the integrator reinstalls, and the reinstall must cure it.
+mkdir -p "$CFG/hush"; printf 'allow=mux\n' > "$CFG/hush/config"
+_o=$(run check 2>&1) && fail "check passed a filter stale against a config
+placed after the install: $_o"
+case $_o in (*'notification filter'*stale*) ;;
+  (*) fail "check failed without naming the stale filter: $_o" ;; esac
+run install >/dev/null 2>&1 || fail "the curing reinstall errored"
+run check >/dev/null 2>&1 || fail "a reinstall did not cure a stale filter"
+rm -f "$CFG/hush/config"; run install >/dev/null 2>&1
+
 # reinstall is idempotent, and carries a built venv across the payload swap.
 mkdir -p "$PAY/venv/bin"; : > "$PAY/venv/bin/marker"
 run install >/dev/null 2>&1 || fail "reinstall errored"
