@@ -68,6 +68,16 @@ default-timeout=0
 background-color=#001177cc
 border-color=#5599FF
 
+# ... and the same Chrome when it arrives through a RELAY that posts under its
+# own app name and moves the app's name into the summary ("Google Chrome:
+# ..."). Without this, a relayed calendar reminder (which Chrome sends as
+# CRITICAL, since it asks to stay up until acted on) falls through to the red
+# [urgency=high] look above. Matched by shape, not by relay name, so it
+# holds for any relay that keeps that convention.
+[summary~="^Google Chrome: " actionable=true]
+background-color=#001177cc
+border-color=#5599FF
+
 
 # mux: the host rides on the TITLE row, quietly.
 #

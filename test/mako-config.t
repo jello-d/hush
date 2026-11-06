@@ -84,6 +84,14 @@ grep -qxF '[app-name="mux" grouped]' "$CFG" \
   || fail "the GROUPED mux rule is gone, so the shape changes the moment a
 second session speaks and only the first banner looks right"
 
+# A RELAYED CHROME KEEPS ITS LOOK. A relay posts under its own app name and
+# moves "Google Chrome" into the summary, and Chrome sends a calendar reminder
+# as CRITICAL, so without this rule every relayed reminder is painted red by
+# [urgency=high] (measured: the rule is the difference between the two).
+grep -qxF '[summary~="^Google Chrome: " actionable=true]' "$CFG" \
+  || fail "the relayed-Chrome rule is gone, so relayed calendar reminders
+render red as critical alerts"
+
 # AND BOTH JOIN SUMMARY AND BODY WITH A SPACE, which is the entire point: the
 # host arrives as the body's first line, so a `\n` here would put it back on
 # its own row and undo the change these rules exist for.
